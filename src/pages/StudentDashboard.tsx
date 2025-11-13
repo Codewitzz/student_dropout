@@ -1,10 +1,109 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingDown, AlertTriangle, BookOpen, Calendar, Target, Brain } from "lucide-react";
+import { TrendingDown, AlertTriangle, BookOpen, Calendar, Target, Brain, LogOut, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { authService, studentService, performanceService, riskService } from "@/lib/database";
+import type { Student } from "@/types/database";
 
 const StudentDashboard = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [student, setStudent] = useState<Student | null>(null);
+  const [performances, setPerformances] = useState<any[]>([]);
+  const [riskAssessment, setRiskAssessment] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const userRole = await authService.getCurrentUserRole();
+      if (!userRole?.user_id) {
+        throw new Error("Student not found");
+      }
+
+      const studentData = await studentService.getById(userRole.user_id);
+      setStudent(studentData);
+
+      const performanceData = await performanceService.getByStudent(userRole.user_id);
+      setPerformances(performanceData);
+
+      const risk = await riskService.calculateRisk(userRole.user_id);
+      setRiskAssessment(risk);
+    } catch (error: any) {
+      toast({
+        title: "Error Loading Data",
+        description: error.message || "Failed to load dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+      toast({
+        title: "Logged Out",
+        description: "You have been logged out successfully",
+      });
+      navigate("/login");
+    } catch (error: any) {
+      toast({
+        title: "Logout Error",
+        description: error.message || "Failed to logout",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const calculateOverallGPA = () => {
+    if (performances.length === 0) return 0;
+    const totalMarks = performances.reduce((sum, p) => sum + p.marks, 0);
+    return (totalMarks / performances.length / 10).toFixed(1);
+  };
+
+  const calculateAvgAttendance = () => {
+    if (performances.length === 0) return 0;
+    const total = performances.reduce((sum, p) => sum + p.attendance, 0);
+    return Math.round(total / performances.length);
+  };
+
+  const getTotalBacklogs = () => {
+    return performances.reduce((sum, p) => sum + (p.backlogs || 0), 0);
+  };
+
+  const getRiskColor = (risk: string) => {
+    switch (risk) {
+      case "High":
+        return "danger";
+      case "Medium":
+        return "warning";
+      default:
+        return "success";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const riskLevel = riskAssessment?.risk_level || "Low";
+  const riskScore = riskAssessment?.risk_score || 0;
+  const riskColor = getRiskColor(riskLevel);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -13,67 +112,90 @@ const StudentDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Student Dashboard</h1>
-              <p className="text-sm text-muted-foreground">Welcome back, John Doe</p>
+              <p className="text-sm text-muted-foreground">
+                Welcome back, {student?.name || "Student"}
+              </p>
             </div>
-            <Button variant="outline">Logout</Button>
+            <Button variant="outline" onClick={handleLogout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-6 py-8">
         {/* Risk Alert */}
-        <Card className="mb-8 border-2 border-warning bg-gradient-to-r from-warning/10 to-warning/5">
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-warning text-warning-foreground p-3 rounded-xl">
-                  <AlertTriangle className="w-6 h-6" />
+        {riskLevel !== "Low" && (
+          <Card className={`mb-8 border-2 border-${riskColor}/50 bg-gradient-to-r from-${riskColor}/10 to-${riskColor}/5`}>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`bg-${riskColor} text-${riskColor}-foreground p-3 rounded-xl`}>
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">{riskLevel} Risk Level</CardTitle>
+                    <CardDescription>
+                      {riskLevel === "High" 
+                        ? "Your performance needs immediate attention"
+                        : "Your performance needs attention"}
+                    </CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <CardTitle className="text-xl">Medium Risk Level</CardTitle>
-                  <CardDescription>Your performance needs attention</CardDescription>
-                </div>
+                <Badge className={`bg-${riskColor} text-${riskColor}-foreground`}>
+                  {riskScore}% Risk
+                </Badge>
               </div>
-              <Badge className="bg-warning text-warning-foreground">68% Risk</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">
-              Based on your recent performance, attendance, and backlog status, 
-              our AI system recommends immediate attention to improve your academic standing.
-            </p>
-            <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
-              <Brain className="w-4 h-4 mr-2" />
-              View AI Recommendations
-            </Button>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground mb-4">
+                Based on your recent performance, attendance, and backlog status, 
+                our AI system recommends immediate attention to improve your academic standing.
+              </p>
+              {riskAssessment?.factors && riskAssessment.factors.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm font-medium mb-2">Risk Factors:</p>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                    {riskAssessment.factors.map((factor: string, index: number) => (
+                      <li key={index}>{factor}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+                <Brain className="w-4 h-4 mr-2" />
+                View AI Recommendations
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Academic Overview */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <MetricCard
             icon={<BookOpen className="w-5 h-5" />}
             title="Overall GPA"
-            value="6.8"
+            value={calculateOverallGPA()}
             max="10.0"
-            percentage={68}
-            trend="down"
-            color="warning"
+            percentage={parseFloat(calculateOverallGPA()) * 10}
+            trend={parseFloat(calculateOverallGPA()) < 7 ? "down" : undefined}
+            color={parseFloat(calculateOverallGPA()) < 6 ? "danger" : parseFloat(calculateOverallGPA()) < 7 ? "warning" : "success"}
           />
           <MetricCard
             icon={<Calendar className="w-5 h-5" />}
             title="Attendance"
-            value="72%"
-            percentage={72}
-            trend="down"
-            color="danger"
+            value={`${calculateAvgAttendance()}%`}
+            percentage={calculateAvgAttendance()}
+            trend={calculateAvgAttendance() < 75 ? "down" : undefined}
+            color={calculateAvgAttendance() < 75 ? "danger" : calculateAvgAttendance() < 85 ? "warning" : "success"}
           />
           <MetricCard
             icon={<Target className="w-5 h-5" />}
             title="Backlogs"
-            value="2"
+            value={getTotalBacklogs().toString()}
             subtext="Active"
-            color="danger"
+            color={getTotalBacklogs() > 0 ? "danger" : "success"}
           />
         </div>
 
@@ -84,11 +206,28 @@ const StudentDashboard = () => {
             <CardDescription>Your performance across all subjects</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <SubjectRow name="Database Management Systems" marks={45} attendance={62} status="critical" />
-            <SubjectRow name="Data Structures & Algorithms" marks={68} attendance={78} status="warning" />
-            <SubjectRow name="Operating Systems" marks={72} attendance={85} status="good" />
-            <SubjectRow name="Computer Networks" marks={58} attendance={70} status="warning" />
-            <SubjectRow name="Software Engineering" marks={80} attendance={90} status="good" />
+            {performances.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                No performance data available yet. Please contact your teacher.
+              </p>
+            ) : (
+              performances.map((perf) => {
+                const status = perf.marks < 50 || perf.attendance < 75 
+                  ? "critical" 
+                  : perf.marks < 60 || perf.attendance < 85 
+                  ? "warning" 
+                  : "good";
+                return (
+                  <SubjectRow 
+                    key={perf.id}
+                    name={perf.subject} 
+                    marks={perf.marks} 
+                    attendance={perf.attendance} 
+                    status={status} 
+                  />
+                );
+              })
+            )}
           </CardContent>
         </Card>
 
@@ -106,22 +245,47 @@ const StudentDashboard = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <RecommendationItem
-              priority="high"
-              text="Improve DBMS attendance immediately - currently at 62% (minimum required: 75%)"
-            />
-            <RecommendationItem
-              priority="high"
-              text="Clear 2 active backlogs before end of semester to avoid year drop"
-            />
-            <RecommendationItem
-              priority="medium"
-              text="Focus on practical lab work in Computer Networks - marks are below class average"
-            />
-            <RecommendationItem
-              priority="medium"
-              text="Schedule counseling session with academic advisor for study plan revision"
-            />
+            {performances.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                No recommendations available. Performance data will generate personalized insights.
+              </p>
+            ) : (
+              <>
+                {performances.filter((p) => p.attendance < 75).map((perf) => (
+                  <RecommendationItem
+                    key={perf.id}
+                    priority="high"
+                    text={`Improve ${perf.subject} attendance immediately - currently at ${perf.attendance}% (minimum required: 75%)`}
+                  />
+                ))}
+                {getTotalBacklogs() > 0 && (
+                  <RecommendationItem
+                    priority="high"
+                    text={`Clear ${getTotalBacklogs()} active backlog(s) before end of semester to avoid year drop`}
+                  />
+                )}
+                {performances.filter((p) => p.marks < 50).map((perf) => (
+                  <RecommendationItem
+                    key={perf.id}
+                    priority="high"
+                    text={`Focus on ${perf.subject} - marks are critically low at ${perf.marks}%`}
+                  />
+                ))}
+                {riskLevel === "High" && (
+                  <RecommendationItem
+                    priority="high"
+                    text="Schedule counseling session with academic advisor for study plan revision"
+                  />
+                )}
+                {performances.filter((p) => p.marks >= 50 && p.marks < 60).map((perf) => (
+                  <RecommendationItem
+                    key={perf.id}
+                    priority="medium"
+                    text={`Focus on ${perf.subject} - marks are below average at ${perf.marks}%`}
+                  />
+                ))}
+              </>
+            )}
           </CardContent>
         </Card>
       </main>
