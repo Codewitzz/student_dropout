@@ -1,8 +1,16 @@
--- Supabase Database Schema for Educate Elevate Bot
--- Run this SQL in your Supabase SQL Editor
+-- ============================================================================
+-- COMPLETE DATABASE SCHEMA FOR STUDENT DROPOUT PREDICTION SYSTEM
+-- ============================================================================
+-- Run this SQL script in your Supabase SQL Editor to create all required tables
+-- This script includes: Tables, Indexes, Triggers, and RLS Policies
+-- ============================================================================
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ============================================================================
+-- CORE TABLES
+-- ============================================================================
 
 -- Students Table
 CREATE TABLE IF NOT EXISTS students (
@@ -48,7 +56,7 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Student Performance Table
+-- Student Performance Table (with AI Prediction Fields)
 CREATE TABLE IF NOT EXISTS student_performance (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   student_id UUID REFERENCES students(id) ON DELETE CASCADE,
@@ -59,7 +67,7 @@ CREATE TABLE IF NOT EXISTS student_performance (
   internal_marks DECIMAL(5,2) CHECK (internal_marks >= 0 AND internal_marks <= 100),
   semester INTEGER,
   teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
-  -- Additional AI Prediction Fields (7 Minimum Data Points)
+  -- AI Prediction Fields (7 Minimum Data Points)
   assignment_completion DECIMAL(5,2) CHECK (assignment_completion >= 0 AND assignment_completion <= 100),
   class_participation TEXT CHECK (class_participation IN ('Low', 'Medium', 'High')),
   motivation_level TEXT CHECK (motivation_level IN ('Low', 'Medium', 'High')),
@@ -77,6 +85,9 @@ CREATE TABLE IF NOT EXISTS risk_assessments (
   risk_level TEXT NOT NULL CHECK (risk_level IN ('High', 'Medium', 'Low')),
   risk_score INTEGER NOT NULL CHECK (risk_score >= 0 AND risk_score <= 100),
   factors TEXT[], -- Array of risk factors
+  weak_subjects TEXT[], -- Array of weak subjects
+  improvement_suggestions TEXT[], -- Array of AI-generated suggestions
+  detailed_report JSONB, -- JSON object with detailed analysis
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -95,7 +106,10 @@ CREATE TABLE IF NOT EXISTS counseling_sessions (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create indexes for better query performance
+-- ============================================================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================================================
+
 CREATE INDEX IF NOT EXISTS idx_students_erp ON students(erp_number);
 CREATE INDEX IF NOT EXISTS idx_students_department ON students(department);
 CREATE INDEX IF NOT EXISTS idx_teachers_email ON teachers(email);
@@ -106,7 +120,10 @@ CREATE INDEX IF NOT EXISTS idx_risk_student ON risk_assessments(student_id);
 CREATE INDEX IF NOT EXISTS idx_risk_level ON risk_assessments(risk_level);
 CREATE INDEX IF NOT EXISTS idx_counseling_student ON counseling_sessions(student_id);
 
--- Create function to update updated_at timestamp
+-- ============================================================================
+-- TRIGGER FUNCTION FOR AUTO-UPDATE TIMESTAMPS
+-- ============================================================================
+
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -115,7 +132,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers for updated_at
+-- ============================================================================
+-- TRIGGERS FOR AUTO-UPDATE TIMESTAMPS
+-- ============================================================================
+
 CREATE TRIGGER update_students_updated_at BEFORE UPDATE ON students
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -134,7 +154,10 @@ CREATE TRIGGER update_risk_updated_at BEFORE UPDATE ON risk_assessments
 CREATE TRIGGER update_counseling_updated_at BEFORE UPDATE ON counseling_sessions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Enable Row Level Security (RLS)
+-- ============================================================================
+-- ROW LEVEL SECURITY (RLS)
+-- ============================================================================
+
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hods ENABLE ROW LEVEL SECURITY;
@@ -143,11 +166,11 @@ ALTER TABLE student_performance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE risk_assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE counseling_sessions ENABLE ROW LEVEL SECURITY;
 
--- Create policies (adjust based on your security requirements)
--- For now, allowing all authenticated users to read/write
--- You should customize these based on your needs
+-- ============================================================================
+-- RLS POLICIES - Allow authenticated users full access
+-- ============================================================================
 
--- Students policies
+-- Students Policies
 CREATE POLICY "Allow authenticated users to read students" ON students
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -160,7 +183,7 @@ CREATE POLICY "Allow authenticated users to update students" ON students
 CREATE POLICY "Allow authenticated users to delete students" ON students
   FOR DELETE USING (auth.role() = 'authenticated');
 
--- Teachers policies
+-- Teachers Policies
 CREATE POLICY "Allow authenticated users to read teachers" ON teachers
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -173,14 +196,17 @@ CREATE POLICY "Allow authenticated users to update teachers" ON teachers
 CREATE POLICY "Allow authenticated users to delete teachers" ON teachers
   FOR DELETE USING (auth.role() = 'authenticated');
 
--- HODs policies
+-- HODs Policies
 CREATE POLICY "Allow authenticated users to read hods" ON hods
   FOR SELECT USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Allow authenticated users to insert hods" ON hods
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
--- Student Performance policies
+CREATE POLICY "Allow authenticated users to update hods" ON hods
+  FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- Student Performance Policies
 CREATE POLICY "Allow authenticated users to read performance" ON student_performance
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -190,7 +216,10 @@ CREATE POLICY "Allow authenticated users to insert performance" ON student_perfo
 CREATE POLICY "Allow authenticated users to update performance" ON student_performance
   FOR UPDATE USING (auth.role() = 'authenticated');
 
--- Risk Assessments policies
+CREATE POLICY "Allow authenticated users to delete performance" ON student_performance
+  FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Risk Assessments Policies
 CREATE POLICY "Allow authenticated users to read risks" ON risk_assessments
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -200,7 +229,10 @@ CREATE POLICY "Allow authenticated users to insert risks" ON risk_assessments
 CREATE POLICY "Allow authenticated users to update risks" ON risk_assessments
   FOR UPDATE USING (auth.role() = 'authenticated');
 
--- Counseling Sessions policies
+CREATE POLICY "Allow authenticated users to delete risks" ON risk_assessments
+  FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Counseling Sessions Policies
 CREATE POLICY "Allow authenticated users to read counseling" ON counseling_sessions
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -210,10 +242,29 @@ CREATE POLICY "Allow authenticated users to insert counseling" ON counseling_ses
 CREATE POLICY "Allow authenticated users to update counseling" ON counseling_sessions
   FOR UPDATE USING (auth.role() = 'authenticated');
 
--- Users policies
+CREATE POLICY "Allow authenticated users to delete counseling" ON counseling_sessions
+  FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Users Policies
 CREATE POLICY "Allow authenticated users to read users" ON users
   FOR SELECT USING (auth.role() = 'authenticated');
 
 CREATE POLICY "Allow authenticated users to insert users" ON users
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow authenticated users to update users" ON users
+  FOR UPDATE USING (auth.role() = 'authenticated');
+
+-- ============================================================================
+-- COMPLETION MESSAGE
+-- ============================================================================
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ All tables, indexes, triggers, and RLS policies created successfully!';
+  RAISE NOTICE '📊 Created 7 tables: students, teachers, hods, users, student_performance, risk_assessments, counseling_sessions';
+  RAISE NOTICE '🔒 Row Level Security (RLS) enabled on all tables';
+  RAISE NOTICE '⚡ Indexes created for optimal query performance';
+  RAISE NOTICE '🔄 Auto-update triggers configured for timestamps';
+END $$;
 

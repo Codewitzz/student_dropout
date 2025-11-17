@@ -12,17 +12,21 @@ import { useToast } from "@/hooks/use-toast";
 import { teacherService, studentService, riskService, counselingService, authService } from "@/lib/database";
 import { CSVImport } from "@/components/CSVImport";
 import { DatabaseDiagnostic } from "@/components/DatabaseDiagnostic";
-import type { Teacher } from "@/types/database";
+import { StudentList } from "@/components/StudentList";
+import type { Teacher, Student } from "@/types/database";
 
 const HODDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [riskSummary, setRiskSummary] = useState({ high: 0, medium: 0, low: 0 });
   const [totalStudents, setTotalStudents] = useState(0);
   const [counselingProgress, setCounselingProgress] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [activeTab, setActiveTab] = useState("teachers");
 
   // Form state
   const [teacherForm, setTeacherForm] = useState({
@@ -49,6 +53,7 @@ const HODDashboard = () => {
       ]);
 
       setTeachers(teachersData);
+      setStudents(studentsData);
       setTotalStudents(studentsData.length);
       setRiskSummary(riskData);
       
@@ -111,18 +116,28 @@ const HODDashboard = () => {
       if (teacherForm.password) {
         try {
           await authService.signUp(teacherForm.email, teacherForm.password, "teacher", teacher);
+          toast({
+            title: "Teacher Added",
+            description: "New teacher has been added successfully with login account",
+          });
         } catch (authError: any) {
-          // If auth user creation fails, still keep the teacher record
+          // Show error but keep the teacher record
           console.error("Failed to create auth user:", authError);
+          toast({
+            title: "Teacher Added (Login Account Failed)",
+            description: `Teacher record created but login account creation failed: ${authError.message || 'Unknown error'}. Please create login account manually.`,
+            variant: "destructive",
+          });
         }
+      } else {
+        toast({
+          title: "Teacher Added",
+          description: "New teacher has been added. Note: No password provided, login account not created.",
+        });
       }
 
-      toast({
-        title: "Teacher Added",
-        description: "New teacher has been added successfully",
-      });
-
-      // Reset form
+      // Reset form and editing state
+      setEditingTeacher(null);
       setTeacherForm({
         name: "",
         email: "",
@@ -146,11 +161,87 @@ const HODDashboard = () => {
   };
 
   const handleEditTeacher = (teacher: Teacher) => {
-    // TODO: Implement edit functionality
-    toast({
-      title: "Edit Teacher",
-      description: "Edit functionality coming soon",
+    setEditingTeacher(teacher);
+    setTeacherForm({
+      name: teacher.name,
+      email: teacher.email,
+      phone: teacher.phone || "",
+      subjects: teacher.subjects?.join(", ") || "",
+      department: teacher.department || "",
+      password: "", // Don't pre-fill password
     });
+    // Switch to add-teacher tab to show the form
+    setActiveTab("add-teacher");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTeacher(null);
+    setTeacherForm({
+      name: "",
+      email: "",
+      phone: "",
+      subjects: "",
+      department: "",
+      password: "",
+    });
+    setActiveTab("teachers");
+  };
+
+  const handleUpdateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacher) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const subjectsArray = teacherForm.subjects
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      const updateData: Partial<Teacher> = {
+        name: teacherForm.name,
+        phone: teacherForm.phone || undefined,
+        department: teacherForm.department || undefined,
+        subjects: subjectsArray,
+      };
+
+      // Only update email if it changed
+      if (teacherForm.email !== editingTeacher.email) {
+        updateData.email = teacherForm.email;
+      }
+
+      await teacherService.update(editingTeacher.id, updateData);
+
+      // Update password if provided
+      if (teacherForm.password.trim()) {
+        // Note: Password update would require Supabase auth admin API
+        // For now, we'll just show a message
+        toast({
+          title: "Teacher Updated",
+          description: "Teacher information updated. Note: Password changes require admin access.",
+        });
+      } else {
+        toast({
+          title: "Teacher Updated",
+          description: "Teacher information has been updated successfully",
+        });
+      }
+
+      // Reset form and editing state
+      handleCancelEdit();
+
+      // Reload data
+      await loadData();
+    } catch (error: any) {
+      toast({
+        title: "Error Updating Teacher",
+        description: error.message || "Failed to update teacher",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getRiskBadge = (risk: string) => {
@@ -283,8 +374,12 @@ const HODDashboard = () => {
         </Card>
 
             {/* Main Content */}
-            <Tabs defaultValue="teachers" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5 max-w-4xl">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-6 max-w-5xl">
+              <TabsTrigger value="students">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Students
+              </TabsTrigger>
               <TabsTrigger value="teachers">
                 <Users className="w-4 h-4 mr-2" />
                 Teachers
@@ -306,6 +401,19 @@ const HODDashboard = () => {
                 Diagnostic
               </TabsTrigger>
             </TabsList>
+
+          {/* Students List Tab */}
+          <TabsContent value="students" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>All Enrolled Students</CardTitle>
+                <CardDescription>View and search all students in the department</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <StudentList students={students} isLoading={isLoading} />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Teachers Management Tab */}
           <TabsContent value="teachers" className="space-y-6">
@@ -392,15 +500,19 @@ const HODDashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Add Teacher Tab */}
+          {/* Add/Edit Teacher Tab */}
           <TabsContent value="add-teacher" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Add New Teacher</CardTitle>
-                <CardDescription>Register a new teacher and assign subjects</CardDescription>
+                <CardTitle>{editingTeacher ? "Edit Teacher" : "Add New Teacher"}</CardTitle>
+                <CardDescription>
+                  {editingTeacher 
+                    ? "Update teacher information and subject assignments" 
+                    : "Register a new teacher and assign subjects"}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleAddTeacher} className="space-y-4">
+                <form onSubmit={editingTeacher ? handleUpdateTeacher : handleAddTeacher} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="teacher-name">Full Name</Label>
@@ -422,7 +534,11 @@ const HODDashboard = () => {
                         required
                         value={teacherForm.email}
                         onChange={(e) => setTeacherForm({ ...teacherForm, email: e.target.value })}
+                        disabled={!!editingTeacher}
                       />
+                      {editingTeacher && (
+                        <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -457,34 +573,57 @@ const HODDashboard = () => {
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="teacher-password">Initial Password (Optional)</Label>
+                      <Label htmlFor="teacher-password">
+                        {editingTeacher ? "New Password (Optional - Leave blank to keep current)" : "Initial Password (Optional)"}
+                      </Label>
                       <Input 
                         id="teacher-password" 
                         type="password" 
-                        placeholder="Set initial password for login" 
+                        placeholder={editingTeacher ? "Enter new password to change" : "Set initial password for login"} 
                         value={teacherForm.password}
                         onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })}
                       />
                     </div>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-gradient-to-r from-primary to-accent"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Adding...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Add Teacher
-                      </>
+                  <div className="flex gap-2">
+                    <Button 
+                      type="submit" 
+                      className="flex-1 bg-gradient-to-r from-primary to-accent"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          {editingTeacher ? "Updating..." : "Adding..."}
+                        </>
+                      ) : (
+                        <>
+                          {editingTeacher ? (
+                            <>
+                              <UserCog className="w-4 h-4 mr-2" />
+                              Update Teacher
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-4 h-4 mr-2" />
+                              Add Teacher
+                            </>
+                          )}
+                        </>
+                      )}
+                    </Button>
+                    {editingTeacher && (
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        onClick={handleCancelEdit}
+                        disabled={isSubmitting}
+                      >
+                        Cancel
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>

@@ -133,9 +133,9 @@ export async function checkAuthentication() {
  */
 export async function verifyTable(tableName: string) {
   try {
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from(tableName)
-      .select('*')
+      .select('*', { count: 'exact', head: true })
       .limit(0);
 
     if (error) {
@@ -143,19 +143,35 @@ export async function verifyTable(tableName: string) {
         exists: false,
         accessible: false,
         error: getErrorMessage(error),
+        rowCount: 0,
       };
     }
+
+    // Get actual row count
+    const { count: rowCount } = await supabase
+      .from(tableName)
+      .select('*', { count: 'exact', head: true });
+
+    // Get sample data (first 3 rows)
+    const { data: sampleData } = await supabase
+      .from(tableName)
+      .select('*')
+      .limit(3);
 
     return {
       exists: true,
       accessible: true,
       error: null,
+      rowCount: rowCount || 0,
+      sampleData: sampleData || [],
     };
   } catch (error: any) {
     return {
       exists: false,
       accessible: false,
       error: error.message || 'Unknown error',
+      rowCount: 0,
+      sampleData: [],
     };
   }
 }

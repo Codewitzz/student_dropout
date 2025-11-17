@@ -50,8 +50,33 @@ export interface StudentPerformance {
   internal_marks?: number;
   semester?: number;
   teacher_id?: string;
+  // AI Prediction Fields (7 Minimum Data Points)
+  assignment_completion?: number; // 0-100%
+  class_participation?: 'Low' | 'Medium' | 'High';
+  motivation_level?: 'Low' | 'Medium' | 'High';
+  stress_level?: 'Low' | 'Medium' | 'High';
+  teacher_remark?: string;
+  past_failures?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface AIRiskPrediction {
+  risk_level: 'High' | 'Medium' | 'Low';
+  risk_score: number; // 0-100
+  factors: string[];
+  weak_subjects: string[];
+  improvement_suggestions: string[];
+  detailed_report: {
+    marks_analysis: string;
+    attendance_analysis: string;
+    assignment_analysis: string;
+    behavior_analysis: string;
+    motivation_analysis: string;
+    stress_analysis: string;
+    teacher_feedback_summary: string;
+    failure_history_analysis: string;
+  };
 }
 
 export interface RiskAssessment {

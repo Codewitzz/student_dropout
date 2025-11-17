@@ -1,7 +1,6 @@
 import Papa from 'papaparse';
-import { studentService, teacherService } from './database';
+import { studentService, teacherService, authService } from './database';
 import type { Student, Teacher } from '@/types/database';
-import { useToast } from '@/hooks/use-toast';
 
 export interface CSVImportResult {
   success: number;
@@ -30,13 +29,11 @@ export const csvImportService = {
               }
 
               // Check if student already exists
-              try {
-                await studentService.getByERP(row.erp_number);
+              const existingStudent = await studentService.getByERP(row.erp_number);
+              if (existingStudent) {
                 failed++;
                 errors.push(`Row ${results.data.indexOf(row) + 1}: Student with ERP ${row.erp_number} already exists`);
                 continue;
-              } catch {
-                // Student doesn't exist, proceed with creation
               }
 
               const student: Omit<Student, 'id' | 'created_at' | 'updated_at'> = {
@@ -48,8 +45,33 @@ export const csvImportService = {
                 year: row.year ? parseInt(row.year) : undefined,
               };
 
-              await studentService.create(student);
-              success++;
+              const createdStudent = await studentService.create(student);
+              
+              // Create auth user if email and password are provided
+              if (row.email?.trim() && row.password?.trim()) {
+                try {
+                  await authService.signUp(
+                    row.email.trim(), 
+                    row.password.trim(), 
+                    "student", 
+                    createdStudent
+                  );
+                  success++;
+                } catch (authError: any) {
+                  // Student created but auth failed
+                  console.warn(`Failed to create auth user for student ${row.erp_number}:`, authError.message);
+                  errors.push(`Row ${results.data.indexOf(row) + 1}: Student created but auth account failed - ${authError.message}`);
+                  success++; // Still count as success since student was created
+                }
+              } else {
+                // Student created without auth account
+                if (!row.email?.trim()) {
+                  errors.push(`Row ${results.data.indexOf(row) + 1}: Student created but no email provided for login account`);
+                } else if (!row.password?.trim()) {
+                  errors.push(`Row ${results.data.indexOf(row) + 1}: Student created but no password provided for login account`);
+                }
+                success++;
+              }
             } catch (error: any) {
               failed++;
               errors.push(`Row ${results.data.indexOf(row) + 1}: ${error.message || 'Unknown error'}`);
@@ -89,16 +111,11 @@ export const csvImportService = {
               }
 
               // Check if teacher already exists
-              try {
-                const existing = await teacherService.getAll();
-                const found = existing.find(t => t.email === row.email.trim());
-                if (found) {
-                  failed++;
-                  errors.push(`Row ${results.data.indexOf(row) + 1}: Teacher with email ${row.email} already exists`);
-                  continue;
-                }
-              } catch {
-                // Continue if check fails
+              const existingTeacher = await teacherService.getByEmail(row.email.trim());
+              if (existingTeacher) {
+                failed++;
+                errors.push(`Row ${results.data.indexOf(row) + 1}: Teacher with email ${row.email} already exists`);
+                continue;
               }
 
               const teacher: Omit<Teacher, 'id' | 'created_at' | 'updated_at'> = {
@@ -106,11 +123,32 @@ export const csvImportService = {
                 email: row.email.trim(),
                 phone: row.phone?.trim() || undefined,
                 department: row.department?.trim() || undefined,
-                subjects: row.subjects ? row.subjects.split(',').map((s: string) => s.trim()) : [],
+                subjects: row.subjects ? row.subjects.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0) : [],
               };
 
-              await teacherService.create(teacher);
-              success++;
+              const createdTeacher = await teacherService.create(teacher);
+              
+              // Create auth user if password is provided
+              if (row.password?.trim()) {
+                try {
+                  await authService.signUp(
+                    row.email.trim(), 
+                    row.password.trim(), 
+                    "teacher", 
+                    createdTeacher
+                  );
+                  success++;
+                } catch (authError: any) {
+                  // Teacher created but auth failed
+                  console.warn(`Failed to create auth user for teacher ${row.email}:`, authError.message);
+                  errors.push(`Row ${results.data.indexOf(row) + 1}: Teacher created but auth account failed - ${authError.message}`);
+                  success++; // Still count as success since teacher was created
+                }
+              } else {
+                // Teacher created without auth account
+                errors.push(`Row ${results.data.indexOf(row) + 1}: Teacher created but no password provided for login account`);
+                success++;
+              }
             } catch (error: any) {
               failed++;
               errors.push(`Row ${results.data.indexOf(row) + 1}: ${error.message || 'Unknown error'}`);
@@ -131,14 +169,14 @@ export const csvImportService = {
   },
 
   generateStudentTemplate(): string {
-    const headers = ['erp_number', 'name', 'email', 'phone', 'department', 'year'];
-    const example = ['2021001', 'John Doe', 'john@example.com', '1234567890', 'Computer Science', '3'];
+    const headers = ['erp_number', 'name', 'email', 'password', 'phone', 'department', 'year'];
+    const example = ['2021001', 'John Doe', 'john@example.com', 'password123', '1234567890', 'Computer Science', '3'];
     return [headers.join(','), example.join(',')].join('\n');
   },
 
   generateTeacherTemplate(): string {
-    const headers = ['name', 'email', 'phone', 'department', 'subjects'];
-    const example = ['Dr. Jane Smith', 'jane@example.com', '1234567890', 'Computer Science', 'DBMS,Networks'];
+    const headers = ['name', 'email', 'password', 'phone', 'department', 'subjects'];
+    const example = ['Dr. Jane Smith', 'jane@example.com', 'password123', '1234567890', 'Computer Science', 'DBMS,Networks'];
     return [headers.join(','), example.join(',')].join('\n');
   },
 };

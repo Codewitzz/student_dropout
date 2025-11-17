@@ -2,8 +2,12 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CheckCircle2, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CheckCircle2, XCircle, AlertTriangle, Loader2, Database, Users, BookOpen, TrendingUp } from 'lucide-react';
 import { testDatabaseConnection, verifyTable, checkAuthentication } from '@/lib/database-utils';
+import { supabase } from '@/lib/supabase';
 
 export const DatabaseDiagnostic = () => {
   const [isRunning, setIsRunning] = useState(false);
@@ -17,6 +21,7 @@ export const DatabaseDiagnostic = () => {
       const connectionTest = await testDatabaseConnection();
       const authCheck = await checkAuthentication();
       
+      // Check all tables
       const tableChecks = await Promise.all([
         verifyTable('students'),
         verifyTable('teachers'),
@@ -27,17 +32,28 @@ export const DatabaseDiagnostic = () => {
         verifyTable('counseling_sessions'),
       ]);
 
+      // Get detailed statistics
+      const [studentsData, teachersData, hodsData, usersData, performanceData, risksData, counselingData] = await Promise.all([
+        supabase.from('students').select('*', { count: 'exact' }),
+        supabase.from('teachers').select('*', { count: 'exact' }),
+        supabase.from('hods').select('*', { count: 'exact' }),
+        supabase.from('users').select('*', { count: 'exact' }),
+        supabase.from('student_performance').select('*', { count: 'exact' }),
+        supabase.from('risk_assessments').select('*', { count: 'exact' }),
+        supabase.from('counseling_sessions').select('*', { count: 'exact' }),
+      ]);
+
       setResults({
         connection: connectionTest,
         authentication: authCheck,
         tables: {
-          students: tableChecks[0],
-          teachers: tableChecks[1],
-          hods: tableChecks[2],
-          users: tableChecks[3],
-          student_performance: tableChecks[4],
-          risk_assessments: tableChecks[5],
-          counseling_sessions: tableChecks[6],
+          students: { ...tableChecks[0], data: studentsData.data || [], count: studentsData.count || 0 },
+          teachers: { ...tableChecks[1], data: teachersData.data || [], count: teachersData.count || 0 },
+          hods: { ...tableChecks[2], data: hodsData.data || [], count: hodsData.count || 0 },
+          users: { ...tableChecks[3], data: usersData.data || [], count: usersData.count || 0 },
+          student_performance: { ...tableChecks[4], data: performanceData.data || [], count: performanceData.count || 0 },
+          risk_assessments: { ...tableChecks[5], data: risksData.data || [], count: risksData.count || 0 },
+          counseling_sessions: { ...tableChecks[6], data: counselingData.data || [], count: counselingData.count || 0 },
         },
       });
     } catch (error: any) {
@@ -109,29 +125,136 @@ export const DatabaseDiagnostic = () => {
               </Alert>
             )}
 
-            {/* Tables */}
+            {/* Tables Overview */}
             {results.tables && (
-              <div className="space-y-2">
-                <h4 className="font-semibold">Table Access</h4>
-                {Object.entries(results.tables).map(([tableName, check]: [string, any]) => (
-                  <div
-                    key={tableName}
-                    className={`flex items-center justify-between p-2 rounded ${
-                      check.accessible ? 'bg-success/10' : 'bg-destructive/10'
-                    }`}
-                  >
-                    <span className="font-mono text-sm">{tableName}</span>
-                    {check.accessible ? (
-                      <CheckCircle2 className="w-4 h-4 text-success" />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-4 h-4 text-destructive" />
-                        <span className="text-xs text-destructive">{check.error}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
+              <div className="space-y-4">
+                <h4 className="font-semibold">Table Status & Statistics</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Object.entries(results.tables).map(([tableName, check]: [string, any]) => (
+                    <Card key={tableName} className={check.accessible ? 'border-success' : 'border-destructive'}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-sm font-mono">{tableName}</CardTitle>
+                          {check.accessible ? (
+                            <CheckCircle2 className="w-5 h-5 text-success" />
+                          ) : (
+                            <XCircle className="w-5 h-5 text-destructive" />
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {check.accessible ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">Row Count:</span>
+                              <Badge variant="secondary">{check.count || check.rowCount || 0}</Badge>
+                            </div>
+                            {check.error && (
+                              <p className="text-xs text-destructive">{check.error}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-destructive">{check.error || 'Not accessible'}</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
               </div>
+            )}
+
+            {/* Detailed Table Data */}
+            {results.tables && (
+              <Tabs defaultValue="students" className="w-full">
+                <TabsList className="grid w-full grid-cols-7">
+                  <TabsTrigger value="students" className="text-xs">
+                    <Database className="w-3 h-3 mr-1" />
+                    Students
+                  </TabsTrigger>
+                  <TabsTrigger value="teachers" className="text-xs">
+                    <Users className="w-3 h-3 mr-1" />
+                    Teachers
+                  </TabsTrigger>
+                  <TabsTrigger value="hods" className="text-xs">HODs</TabsTrigger>
+                  <TabsTrigger value="users" className="text-xs">Users</TabsTrigger>
+                  <TabsTrigger value="performance" className="text-xs">
+                    <BookOpen className="w-3 h-3 mr-1" />
+                    Performance
+                  </TabsTrigger>
+                  <TabsTrigger value="risks" className="text-xs">
+                    <TrendingUp className="w-3 h-3 mr-1" />
+                    Risks
+                  </TabsTrigger>
+                  <TabsTrigger value="counseling" className="text-xs">Counseling</TabsTrigger>
+                </TabsList>
+
+                {Object.entries(results.tables).map(([tableName, tableInfo]: [string, any]) => {
+                  const tabValue = tableName === 'student_performance' ? 'performance' 
+                    : tableName === 'risk_assessments' ? 'risks'
+                    : tableName === 'counseling_sessions' ? 'counseling'
+                    : tableName;
+                  
+                  if (!tableInfo.accessible || !tableInfo.data || tableInfo.data.length === 0) {
+                    return (
+                      <TabsContent key={tableName} value={tabValue}>
+                        <Card>
+                          <CardContent className="pt-6">
+                            <p className="text-center text-muted-foreground">
+                              {tableInfo.error ? `Error: ${tableInfo.error}` : 'No data available'}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </TabsContent>
+                    );
+                  }
+
+                  const columns = Object.keys(tableInfo.data[0] || {});
+                  
+                  return (
+                    <TabsContent key={tableName} value={tabValue}>
+                      <Card>
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg">{tableName}</CardTitle>
+                            <Badge variant="secondary">{tableInfo.count || tableInfo.data.length} rows</Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="rounded-md border max-h-96 overflow-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  {columns.map((col) => (
+                                    <TableHead key={col} className="text-xs">{col}</TableHead>
+                                  ))}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {tableInfo.data.slice(0, 10).map((row: any, idx: number) => (
+                                  <TableRow key={idx}>
+                                    {columns.map((col) => (
+                                      <TableCell key={col} className="text-xs">
+                                        {typeof row[col] === 'object' 
+                                          ? JSON.stringify(row[col]).substring(0, 50) + '...'
+                                          : String(row[col] || '-').substring(0, 30)}
+                                      </TableCell>
+                                    ))}
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          {tableInfo.data.length > 10 && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Showing first 10 of {tableInfo.data.length} rows
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
             )}
 
             {/* Error */}

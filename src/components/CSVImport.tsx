@@ -184,13 +184,15 @@ export const CSVImport = ({ type, onImportComplete }: CSVImportProps) => {
             {type === 'student' ? (
               <>
                 <li>Required columns: erp_number, name</li>
-                <li>Optional columns: email, phone, department, year</li>
+                <li>Optional columns: email, password, phone, department, year</li>
+                <li>Note: If email and password are provided, login account will be created automatically</li>
                 <li>First row should contain column headers</li>
               </>
             ) : (
               <>
                 <li>Required columns: name, email</li>
-                <li>Optional columns: phone, department, subjects (comma-separated)</li>
+                <li>Optional columns: password, phone, department, subjects (comma-separated)</li>
+                <li>Note: If password is provided, login account will be created automatically</li>
                 <li>First row should contain column headers</li>
               </>
             )}

@@ -7,6 +7,7 @@ import { TrendingDown, AlertTriangle, BookOpen, Calendar, Target, Brain, LogOut,
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { authService, studentService, performanceService, riskService } from "@/lib/database";
+import type { AIRiskPrediction } from "@/types/database";
 import type { Student } from "@/types/database";
 
 const StudentDashboard = () => {
@@ -14,7 +15,7 @@ const StudentDashboard = () => {
   const { toast } = useToast();
   const [student, setStudent] = useState<Student | null>(null);
   const [performances, setPerformances] = useState<any[]>([]);
-  const [riskAssessment, setRiskAssessment] = useState<any>(null);
+  const [riskAssessment, setRiskAssessment] = useState<AIRiskPrediction | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -24,25 +25,48 @@ const StudentDashboard = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const userRole = await authService.getCurrentUserRole();
-      if (!userRole?.user_id) {
-        throw new Error("Student not found");
+      
+      // Get current authenticated user
+      const currentUser = await authService.getCurrentUser();
+      if (!currentUser) {
+        throw new Error("Not authenticated. Please login again.");
       }
 
+      // Get user role and mapping
+      const userRole = await authService.getCurrentUserRole();
+      if (!userRole) {
+        throw new Error("User role not found. Please contact administrator.");
+      }
+
+      if (!userRole.user_id) {
+        throw new Error("Student ID not found in user record. Please contact administrator to link your account.");
+      }
+
+      // Fetch student data using the user_id from users table
       const studentData = await studentService.getById(userRole.user_id);
+      if (!studentData) {
+        throw new Error(`Student record not found with ID: ${userRole.user_id}`);
+      }
       setStudent(studentData);
 
+      // Fetch performance data
       const performanceData = await performanceService.getByStudent(userRole.user_id);
-      setPerformances(performanceData);
+      setPerformances(performanceData || []);
 
+      // Calculate risk assessment
       const risk = await riskService.calculateRisk(userRole.user_id);
       setRiskAssessment(risk);
     } catch (error: any) {
+      console.error("Error loading student data:", error);
       toast({
         title: "Error Loading Data",
-        description: error.message || "Failed to load dashboard data",
+        description: error.message || "Failed to load dashboard data. Please check your account setup.",
         variant: "destructive",
       });
+      // Redirect to login if authentication fails
+      if (error.message?.includes("Not authenticated") || error.message?.includes("User role not found")) {
+        setTimeout(() => navigate("/login"), 2000);
+      }
     } finally {
       setIsLoading(false);
     }
