@@ -8,11 +8,13 @@ import { csvImportService, type CSVImportResult } from '@/lib/csv-import';
 import { useToast } from '@/hooks/use-toast';
 
 interface CSVImportProps {
-  type: 'student' | 'teacher';
+  type: 'student' | 'teacher' | 'performance';
   onImportComplete?: () => void;
+  teacherId?: string; // Required for performance import
+  teacherDepartment?: string; // Optional: teacher's department for filtering
 }
 
-export const CSVImport = ({ type, onImportComplete }: CSVImportProps) => {
+export const CSVImport = ({ type, onImportComplete, teacherId, teacherDepartment }: CSVImportProps) => {
   const [file, setFile] = useState<File | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [result, setResult] = useState<CSVImportResult | null>(null);
@@ -48,9 +50,26 @@ export const CSVImport = ({ type, onImportComplete }: CSVImportProps) => {
     setResult(null);
 
     try {
-      const importResult = type === 'student'
-        ? await csvImportService.importStudents(file)
-        : await csvImportService.importTeachers(file);
+      let importResult: CSVImportResult;
+      
+      if (type === 'student') {
+        importResult = await csvImportService.importStudents(file);
+      } else if (type === 'teacher') {
+        importResult = await csvImportService.importTeachers(file);
+      } else if (type === 'performance') {
+        if (!teacherId) {
+          toast({
+            title: 'Missing Teacher ID',
+            description: 'Teacher ID is required for performance data import',
+            variant: 'destructive',
+          });
+          setIsImporting(false);
+          return;
+        }
+        importResult = await csvImportService.importStudentPerformance(file, teacherId, teacherDepartment);
+      } else {
+        throw new Error('Invalid import type');
+      }
 
       setResult(importResult);
 
@@ -79,15 +98,25 @@ export const CSVImport = ({ type, onImportComplete }: CSVImportProps) => {
   };
 
   const handleDownloadTemplate = () => {
-    const template = type === 'student'
-      ? csvImportService.generateStudentTemplate()
-      : csvImportService.generateTeacherTemplate();
+    let template: string;
+    let filename: string;
+    
+    if (type === 'student') {
+      template = csvImportService.generateStudentTemplate();
+      filename = 'student_template.csv';
+    } else if (type === 'teacher') {
+      template = csvImportService.generateTeacherTemplate();
+      filename = 'teacher_template.csv';
+    } else {
+      template = csvImportService.generatePerformanceTemplate();
+      filename = 'student_performance_template.csv';
+    }
 
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${type}_template.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -95,7 +124,7 @@ export const CSVImport = ({ type, onImportComplete }: CSVImportProps) => {
 
     toast({
       title: 'Template Downloaded',
-      description: `CSV template for ${type}s has been downloaded`,
+      description: `CSV template has been downloaded`,
     });
   };
 
@@ -104,10 +133,10 @@ export const CSVImport = ({ type, onImportComplete }: CSVImportProps) => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="w-5 h-5" />
-          Import {type === 'student' ? 'Students' : 'Teachers'} from CSV
+          Import {type === 'student' ? 'Students' : type === 'teacher' ? 'Teachers' : 'Student Performance Data'} from CSV
         </CardTitle>
         <CardDescription>
-          Upload a CSV file to bulk import {type === 'student' ? 'students' : 'teachers'} into the system
+          Upload a CSV file to bulk import {type === 'student' ? 'students' : type === 'teacher' ? 'teachers' : 'student performance data'} into the system
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -188,11 +217,20 @@ export const CSVImport = ({ type, onImportComplete }: CSVImportProps) => {
                 <li>Note: If email and password are provided, login account will be created automatically</li>
                 <li>First row should contain column headers</li>
               </>
-            ) : (
+            ) : type === 'teacher' ? (
               <>
                 <li>Required columns: name, email</li>
                 <li>Optional columns: password, phone, department, subjects (comma-separated)</li>
                 <li>Note: If password is provided, login account will be created automatically</li>
+                <li>First row should contain column headers</li>
+              </>
+            ) : (
+              <>
+                <li>Required columns: erp_number, subject, marks, attendance</li>
+                <li>Optional columns: backlogs, internal_marks, semester, assignment_completion, class_participation, motivation_level, stress_level, teacher_remark, past_failures</li>
+                <li>Marks and attendance must be between 0-100</li>
+                <li>class_participation, motivation_level, stress_level: Use "Low", "Medium", or "High"</li>
+                <li>If performance record exists for student+subject, it will be updated; otherwise, a new record will be created</li>
                 <li>First row should contain column headers</li>
               </>
             )}

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
-import type { Student, Teacher, HOD, StudentPerformance, RiskAssessment, CounselingSession, UserRole, AIRiskPrediction } from '@/types/database';
+import type { Student, Teacher, HOD, StudentPerformance, RiskAssessment, CounselingSession, UserRole, AIRiskPrediction, TimetableEntry } from '@/types/database';
 import { handleDatabaseError, getErrorMessage } from './database-utils';
+import { generateCounselingSuggestions } from './gemini';
 
 // ==================== Authentication ====================
 
@@ -139,16 +140,73 @@ export const authService = {
     if (error) throw error;
     return data;
   },
+
+  async getCurrentUserProfile() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: userRole, error: roleError } = await supabase
+      .from('users')
+      .select('role, user_id')
+      .eq('id', user.id)
+      .single();
+
+    if (roleError || !userRole) return null;
+
+    let profile: any = { role: userRole.role, user_id: userRole.user_id };
+
+    // Get profile data based on role
+    if (userRole.role === 'hod') {
+      const { data: hodData, error: hodError } = await supabase
+        .from('hods')
+        .select('name, department')
+        .eq('id', userRole.user_id)
+        .single();
+      
+      if (!hodError && hodData) {
+        profile = { ...profile, name: hodData.name, department: hodData.department };
+      }
+    } else if (userRole.role === 'teacher') {
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('name, department')
+        .eq('id', userRole.user_id)
+        .single();
+      
+      if (!teacherError && teacherData) {
+        profile = { ...profile, name: teacherData.name, department: teacherData.department };
+      }
+    } else if (userRole.role === 'student') {
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('name, department')
+        .eq('id', userRole.user_id)
+        .single();
+      
+      if (!studentError && studentData) {
+        profile = { ...profile, name: studentData.name, department: studentData.department };
+      }
+    }
+
+    return profile;
+  },
 };
 
 // ==================== Students ====================
 
 export const studentService = {
-  async getAll() {
+  async getAll(department?: string) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('students')
-        .select('*')
+        .select('*');
+      
+      // Filter by department if provided
+      if (department) {
+        query = query.eq('department', department);
+      }
+      
+      const { data, error } = await query
         .order('created_at', { ascending: false });
       
       if (error) {
@@ -333,11 +391,18 @@ export const studentService = {
 // ==================== Teachers ====================
 
 export const teacherService = {
-  async getAll() {
+  async getAll(department?: string) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('teachers')
-        .select('*')
+        .select('*');
+      
+      // Filter by department if provided
+      if (department) {
+        query = query.eq('department', department);
+      }
+      
+      const { data, error } = await query
         .order('created_at', { ascending: false });
       
       if (error) {
@@ -480,6 +545,20 @@ export const hodService = {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as HOD;
+  },
+
+  async update(id: string, updates: Partial<Omit<HOD, 'id' | 'created_at' | 'updated_at'>>) {
+    const { data, error } = await supabase
+      .from('hods')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
       .select()
       .single();
     if (error) throw error;
@@ -718,36 +797,65 @@ export const riskService = {
         : 'Good: No past failures or backlogs recorded. Student maintains clean academic record.',
     };
 
-    // Generate AI-powered improvement suggestions
-    const improvement_suggestions: string[] = [];
+    // Generate AI-powered improvement suggestions using Gemini
+    let improvement_suggestions: string[] = [];
     
-    if (latestPerf.marks < 50) {
-      improvement_suggestions.push(`Focus on improving marks in ${latestPerf.subject}. Current score: ${latestPerf.marks}%. Target: 60%+.`);
-    }
-    if (latestPerf.attendance < 75) {
-      improvement_suggestions.push(`Improve attendance immediately. Current: ${latestPerf.attendance}%. Minimum required: 75%.`);
-    }
-    if (latestPerf.assignment_completion !== undefined && latestPerf.assignment_completion < 70) {
-      improvement_suggestions.push(`Complete all assignments on time. Current completion rate: ${latestPerf.assignment_completion}%.`);
-    }
-    if (latestPerf.class_participation === 'Low') {
-      improvement_suggestions.push('Increase class participation. Ask questions, participate in discussions, and engage with teachers.');
-    }
-    if (latestPerf.motivation_level === 'Low') {
-      improvement_suggestions.push('Seek counseling or mentorship to improve motivation. Connect with academic advisors.');
-    }
-    if (latestPerf.stress_level === 'High') {
-      improvement_suggestions.push('Manage stress through time management, breaks, and seeking support from counselors.');
-    }
-    if (totalBacklogs > 0 || totalPastFailures > 0) {
-      improvement_suggestions.push(`Clear ${totalBacklogs + totalPastFailures} backlog(s) before end of semester to avoid year drop.`);
-    }
-    if (weakSubjects.length > 0) {
-      improvement_suggestions.push(`Focus on weak subjects: ${weakSubjects.join(', ')}. Seek extra help and practice regularly.`);
-    }
-    
-    if (improvement_suggestions.length === 0) {
-      improvement_suggestions.push('Continue maintaining current performance. Keep up the good work!');
+    try {
+      // Try to get Gemini AI suggestions
+      const geminiSuggestions = await generateCounselingSuggestions({
+        risk_level,
+        risk_score: Math.min(riskScore, 100),
+        factors,
+        weak_subjects: weakSubjects,
+        marks: latestPerf.marks,
+        attendance: latestPerf.attendance,
+        assignment_completion: latestPerf.assignment_completion,
+        class_participation: latestPerf.class_participation,
+        motivation_level: latestPerf.motivation_level,
+        stress_level: latestPerf.stress_level,
+        backlogs: totalBacklogs,
+        past_failures: totalPastFailures,
+        subject: latestPerf.subject,
+      });
+      
+      if (geminiSuggestions.length > 0) {
+        improvement_suggestions = geminiSuggestions;
+      } else {
+        // Fallback to rule-based suggestions if Gemini returns empty
+        throw new Error('Gemini returned empty suggestions');
+      }
+    } catch (error) {
+      // Fallback to rule-based suggestions if Gemini fails
+      console.log('Using rule-based suggestions as fallback');
+      
+      if (latestPerf.marks < 50) {
+        improvement_suggestions.push(`Focus on improving marks in ${latestPerf.subject}. Current score: ${latestPerf.marks}%. Target: 60%+.`);
+      }
+      if (latestPerf.attendance < 75) {
+        improvement_suggestions.push(`Improve attendance immediately. Current: ${latestPerf.attendance}%. Minimum required: 75%.`);
+      }
+      if (latestPerf.assignment_completion !== undefined && latestPerf.assignment_completion < 70) {
+        improvement_suggestions.push(`Complete all assignments on time. Current completion rate: ${latestPerf.assignment_completion}%.`);
+      }
+      if (latestPerf.class_participation === 'Low') {
+        improvement_suggestions.push('Increase class participation. Ask questions, participate in discussions, and engage with teachers.');
+      }
+      if (latestPerf.motivation_level === 'Low') {
+        improvement_suggestions.push('Seek counseling or mentorship to improve motivation. Connect with academic advisors.');
+      }
+      if (latestPerf.stress_level === 'High') {
+        improvement_suggestions.push('Manage stress through time management, breaks, and seeking support from counselors.');
+      }
+      if (totalBacklogs > 0 || totalPastFailures > 0) {
+        improvement_suggestions.push(`Clear ${totalBacklogs + totalPastFailures} backlog(s) before end of semester to avoid year drop.`);
+      }
+      if (weakSubjects.length > 0) {
+        improvement_suggestions.push(`Focus on weak subjects: ${weakSubjects.join(', ')}. Seek extra help and practice regularly.`);
+      }
+      
+      if (improvement_suggestions.length === 0) {
+        improvement_suggestions.push('Continue maintaining current performance. Keep up the good work!');
+      }
     }
 
     // Save or update risk assessment
@@ -789,18 +897,30 @@ export const riskService = {
     };
   },
 
-  async getAllRisks() {
+  async getAllRisks(department?: string) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('risk_assessments')
         .select('*, students(*)')
         .order('risk_score', { ascending: false });
+      
+      // Filter by department if provided
+      if (department) {
+        query = query.eq('students.department', department);
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         const errorInfo = handleDatabaseError(error, 'getAllRisks');
         console.error('Failed to fetch risks:', errorInfo);
         // Return empty array instead of throwing to prevent dashboard crash
         return [];
+      }
+      
+      // If department filter was applied, filter results (since join filter might not work directly)
+      if (department && data) {
+        return data.filter((r: any) => r.students?.department === department);
       }
       
       return data || [];
@@ -810,9 +930,9 @@ export const riskService = {
     }
   },
 
-  async getRiskSummary() {
+  async getRiskSummary(department?: string) {
     try {
-      const risks = await this.getAllRisks();
+      const risks = await this.getAllRisks(department);
       return {
         high: risks.filter((r: any) => r.risk_level === 'High').length,
         medium: risks.filter((r: any) => r.risk_level === 'Medium').length,
@@ -833,13 +953,19 @@ export const riskService = {
 // ==================== Counseling ====================
 
 export const counselingService = {
-  async getAll() {
+  async getAll(department?: string) {
     const { data, error } = await supabase
       .from('counseling_sessions')
       .select('*, students(*), teachers(*), hods(*)')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data;
+    
+    // Filter by department if provided
+    if (department && data) {
+      return data.filter((c: any) => c.students?.department === department);
+    }
+    
+    return data || [];
   },
 
   async create(session: Omit<CounselingSession, 'id' | 'created_at' | 'updated_at'>) {
@@ -868,6 +994,141 @@ export const counselingService = {
       .single();
     if (error) throw error;
     return data as CounselingSession;
+  },
+};
+
+// ==================== Timetable ====================
+
+export const timetableService = {
+  async getByDepartment(department: string) {
+    try {
+      const { data, error } = await supabase
+        .from('timetable')
+        .select('*, teachers(*)')
+        .eq('department', department)
+        .order('day', { ascending: true })
+        .order('period', { ascending: true });
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'getByDepartment timetable');
+        throw new Error(errorInfo.message);
+      }
+      
+      return (data || []) as TimetableEntry[];
+    } catch (error: any) {
+      console.error('Error in timetableService.getByDepartment:', error);
+      throw error;
+    }
+  },
+
+  async create(entry: Omit<TimetableEntry, 'id' | 'created_at' | 'updated_at'>) {
+    try {
+      const { data, error } = await supabase
+        .from('timetable')
+        .insert({
+          ...entry,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'create timetable');
+        throw new Error(errorInfo.message);
+      }
+      
+      return data as TimetableEntry;
+    } catch (error: any) {
+      console.error('Error in timetableService.create:', error);
+      throw error;
+    }
+  },
+
+  async update(id: string, updates: Partial<TimetableEntry>) {
+    try {
+      const { data, error } = await supabase
+        .from('timetable')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'update timetable');
+        throw new Error(errorInfo.message);
+      }
+      
+      return data as TimetableEntry;
+    } catch (error: any) {
+      console.error('Error in timetableService.update:', error);
+      throw error;
+    }
+  },
+
+  async delete(id: string) {
+    try {
+      const { error } = await supabase
+        .from('timetable')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'delete timetable');
+        throw new Error(errorInfo.message);
+      }
+    } catch (error: any) {
+      console.error('Error in timetableService.delete:', error);
+      throw error;
+    }
+  },
+
+  async bulkUpsert(entries: Omit<TimetableEntry, 'id' | 'created_at' | 'updated_at'>[]) {
+    try {
+      // Delete existing entries for the department and days
+      if (entries.length > 0) {
+        const department = entries[0].department;
+        const days = [...new Set(entries.map(e => e.day))];
+        
+        for (const day of days) {
+          const { error: deleteError } = await supabase
+            .from('timetable')
+            .delete()
+            .eq('department', department)
+            .eq('day', day);
+          
+          if (deleteError) {
+            console.warn('Error deleting existing timetable entries:', deleteError);
+          }
+        }
+      }
+
+      // Insert new entries
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('timetable')
+        .insert(
+          entries.map(e => ({
+            ...e,
+            created_at: now,
+            updated_at: now,
+          }))
+        )
+        .select();
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'bulkUpsert timetable');
+        throw new Error(errorInfo.message);
+      }
+      
+      return (data || []) as TimetableEntry[];
+    } catch (error: any) {
+      console.error('Error in timetableService.bulkUpsert:', error);
+      throw error;
+    }
   },
 };
 

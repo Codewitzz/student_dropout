@@ -7,12 +7,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BookOpen, Users, AlertTriangle, LogOut, TrendingDown, Loader2, FileText, Brain, UserPlus } from "lucide-react";
+import { BookOpen, Users, AlertTriangle, LogOut, TrendingDown, Loader2, FileText, Brain, UserPlus, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { performanceService, counselingService, authService, teacherService, riskService, studentService } from "@/lib/database";
 import { CSVImport } from "@/components/CSVImport";
 import { StudentList } from "@/components/StudentList";
+import { StudentProfileModal } from "@/components/StudentProfileModal";
 import type { StudentPerformance, Student } from "@/types/database";
 
 const TeacherDashboard = () => {
@@ -27,11 +28,19 @@ const TeacherDashboard = () => {
   const [stats, setStats] = useState({
     totalStudents: 0,
     highRisk: 0,
+    mediumRisk: 0,
+    lowRisk: 0,
     avgAttendance: 0,
   });
+  const [selectedRiskFilter, setSelectedRiskFilter] = useState<'High' | 'Medium' | 'Low' | null>(null);
+  const [filteredStudentsByRisk, setFilteredStudentsByRisk] = useState<any[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<string | null>(null);
   const [detailedReport, setDetailedReport] = useState<any>(null);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [userProfile, setUserProfile] = useState<{ name?: string; department?: string } | null>(null);
+  const [currentTeacherId, setCurrentTeacherId] = useState<string | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState("all-students");
   
   // Student addition form state
   const [studentForm, setStudentForm] = useState({
@@ -85,32 +94,56 @@ const TeacherDashboard = () => {
   };
 
   useEffect(() => {
-    if (selectedSubject) {
+    if (selectedSubject && userProfile?.department) {
       loadStudentsBySubject(selectedSubject);
     }
-  }, [selectedSubject]);
+  }, [selectedSubject, userProfile?.department]);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
+      
+      // Get current user's profile (name and department)
+      const profile = await authService.getCurrentUserProfile();
+      if (profile) {
+        setUserProfile(profile);
+      }
+      
       // Get current teacher's subjects
       const userRole = await authService.getCurrentUserRole();
       if (userRole?.user_id) {
-        const teacher = await teacherService.getById(userRole.user_id);
-        const teacherSubjects = teacher.subjects || [];
-        setSubjects(teacherSubjects);
-        if (teacherSubjects.length > 0 && !selectedSubject) {
-          setSelectedSubject(teacherSubjects[0]);
+        setCurrentTeacherId(userRole.user_id);
+        try {
+          const teacher = await teacherService.getById(userRole.user_id);
+          const teacherSubjects = teacher.subjects || [];
+          setSubjects(teacherSubjects);
+          if (teacherSubjects.length > 0 && !selectedSubject) {
+            setSelectedSubject(teacherSubjects[0]);
+          }
+        } catch (teacherError: any) {
+          console.error('Error loading teacher data:', teacherError);
+          toast({
+            title: "Warning",
+            description: "Could not load teacher subjects. Some features may be limited.",
+            variant: "destructive",
+          });
         }
       }
       
-      // Load all students for the "All Students" tab
-      const allStudentsData = await studentService.getAll();
-      setAllStudents(allStudentsData);
+      // Load all students for the "All Students" tab - filtered by department
+      const department = profile?.department;
+      try {
+        const allStudentsData = await studentService.getAll(department);
+        setAllStudents(allStudentsData || []);
+      } catch (studentError: any) {
+        console.error('Error loading students:', studentError);
+        setAllStudents([]);
+      }
     } catch (error: any) {
+      console.error('Error in loadData:', error);
       toast({
         title: "Error Loading Data",
-        description: error.message || "Failed to load dashboard data",
+        description: error.message || "Failed to load dashboard data. Please refresh the page.",
         variant: "destructive",
       });
     } finally {
@@ -122,13 +155,20 @@ const TeacherDashboard = () => {
     try {
       const performanceData = await performanceService.getBySubject(subject);
       
+      // Filter by department if user profile is available
+      const department = userProfile?.department;
+      let filteredData = performanceData;
+      if (department) {
+        filteredData = performanceData.filter((perf: any) => perf.students?.department === department);
+      }
+      
       // Calculate stats
-      const totalStudents = performanceData.length;
+      const totalStudents = filteredData.length;
       let highRiskCount = 0;
       let totalAttendance = 0;
 
       const studentsWithRisk = await Promise.all(
-        performanceData.map(async (perf: any) => {
+        filteredData.map(async (perf: any) => {
           const risk = await riskService.calculateRisk(perf.student_id);
           if (risk.risk_level === "High") highRiskCount++;
           totalAttendance += perf.attendance;
@@ -223,7 +263,7 @@ const TeacherDashboard = () => {
         name: studentForm.name.trim(),
         email: studentForm.email.trim() || undefined,
         phone: studentForm.phone.trim() || undefined,
-        department: studentForm.department.trim() || undefined,
+        department: studentForm.department.trim() || userProfile?.department || undefined,
         year: studentForm.year ? parseInt(studentForm.year) : undefined,
       };
 
@@ -362,6 +402,46 @@ const TeacherDashboard = () => {
     }
   };
 
+  const handleRiskCardClick = async (riskLevel: 'High' | 'Medium' | 'Low') => {
+    try {
+      setSelectedRiskFilter(riskLevel);
+      setActiveTab("all-students"); // Switch to all-students tab
+      
+      // Get all risk assessments for the department
+      const department = userProfile?.department;
+      const allRisks = await riskService.getAllRisks(department);
+      
+      // Filter by risk level
+      const filtered = allRisks.filter((risk: any) => risk.risk_level === riskLevel);
+      
+      // Format the data for display
+      const formattedStudents = filtered.map((risk: any) => ({
+        id: risk.students?.id || '',
+        name: risk.students?.name || 'Unknown',
+        erp_number: risk.students?.erp_number || 'N/A',
+        email: risk.students?.email || '',
+        department: risk.students?.department || '',
+        year: risk.students?.year || null,
+        risk_level: risk.risk_level,
+        risk_score: risk.risk_score,
+        factors: risk.factors || [],
+      }));
+      
+      setFilteredStudentsByRisk(formattedStudents);
+    } catch (error: any) {
+      toast({
+        title: "Error Loading Students",
+        description: error.message || "Failed to load students by risk level",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const clearRiskFilter = () => {
+    setSelectedRiskFilter(null);
+    setFilteredStudentsByRisk([]);
+  };
+
   const getRiskBadge = (risk: string) => {
     const colors = {
       High: "bg-destructive text-destructive-foreground",
@@ -383,7 +463,10 @@ const TeacherDashboard = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
-                <p className="text-sm text-muted-foreground">Prof. Teaching Staff</p>
+                <p className="text-sm text-muted-foreground">
+                  {userProfile?.name ? `${userProfile.name} - ` : ''}
+                  {userProfile?.department || 'Department'}
+                </p>
               </div>
             </div>
             <Button variant="outline" onClick={handleLogout}>
@@ -421,30 +504,66 @@ const TeacherDashboard = () => {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card 
+                className={`border-destructive/50 cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${selectedRiskFilter === 'High' ? 'ring-2 ring-destructive' : ''}`}
+                onClick={() => handleRiskCardClick('High')}
+              >
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">High Risk Students</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-destructive" />
+                    High Risk
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-destructive flex items-center gap-2">
-                    <AlertTriangle className="w-6 h-6" />
-                    {stats.highRisk}
-                  </div>
+                  <div className="text-3xl font-bold text-destructive">{stats.highRisk}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats.totalStudents > 0 ? ((stats.highRisk / stats.totalStudents) * 100).toFixed(1) : 0}% of students
+                  </p>
+                  <p className="text-xs text-primary mt-2 font-medium">Click to view students</p>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card 
+                className={`border-warning/50 cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${selectedRiskFilter === 'Medium' ? 'ring-2 ring-warning' : ''}`}
+                onClick={() => handleRiskCardClick('Medium')}
+              >
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Attendance</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Medium Risk</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-success">{stats.avgAttendance}%</div>
+                  <div className="text-3xl font-bold text-warning">{stats.mediumRisk}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats.totalStudents > 0 ? ((stats.mediumRisk / stats.totalStudents) * 100).toFixed(1) : 0}% of students
+                  </p>
+                  <p className="text-xs text-primary mt-2 font-medium">Click to view students</p>
+                </CardContent>
+              </Card>
+
+              <Card 
+                className={`border-success/50 cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${selectedRiskFilter === 'Low' ? 'ring-2 ring-success' : ''}`}
+                onClick={() => handleRiskCardClick('Low')}
+              >
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Low Risk</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-success">{stats.lowRisk}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats.totalStudents > 0 ? ((stats.lowRisk / stats.totalStudents) * 100).toFixed(1) : 0}% of students
+                  </p>
+                  <p className="text-xs text-primary mt-2 font-medium">Click to view students</p>
                 </CardContent>
               </Card>
             </div>
 
         {/* Main Content */}
-        <Tabs defaultValue="all-students" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          setActiveTab(value);
+          // Clear filter when switching tabs
+          if (value !== 'all-students' && selectedRiskFilter) {
+            clearRiskFilter();
+          }
+        }} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 max-w-3xl">
             <TabsTrigger value="all-students">
               <Users className="w-4 h-4 mr-2" />
@@ -466,6 +585,72 @@ const TeacherDashboard = () => {
 
           {/* All Students List Tab */}
           <TabsContent value="all-students" className="space-y-6">
+            {selectedRiskFilter && (
+              <Card className="border-2 border-primary/20">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <AlertTriangle className={`w-5 h-5 ${
+                          selectedRiskFilter === 'High' ? 'text-destructive' :
+                          selectedRiskFilter === 'Medium' ? 'text-warning' : 'text-success'
+                        }`} />
+                        {selectedRiskFilter} Risk Students
+                      </CardTitle>
+                      <CardDescription>
+                        Showing {filteredStudentsByRisk.length} student(s) with {selectedRiskFilter.toLowerCase()} risk level
+                      </CardDescription>
+                    </div>
+                    <Button variant="outline" onClick={clearRiskFilter} size="sm">
+                      <X className="w-4 h-4 mr-2" />
+                      Clear Filter
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {filteredStudentsByRisk.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>ERP Number</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Department</TableHead>
+                            <TableHead>Year</TableHead>
+                            <TableHead>Risk Level</TableHead>
+                            <TableHead>Risk Score</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredStudentsByRisk.map((student) => (
+                            <TableRow 
+                              key={student.id}
+                              className="cursor-pointer hover:bg-accent"
+                              onClick={() => setSelectedStudentId(student.id)}
+                            >
+                              <TableCell className="font-medium">{student.erp_number}</TableCell>
+                              <TableCell>{student.name}</TableCell>
+                              <TableCell>{student.email || 'N/A'}</TableCell>
+                              <TableCell>{student.department || 'N/A'}</TableCell>
+                              <TableCell>{student.year || 'N/A'}</TableCell>
+                              <TableCell>{getRiskBadge(student.risk_level)}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline">{student.risk_score}/100</Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No students found with {selectedRiskFilter.toLowerCase()} risk level.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
             <Card>
               <CardHeader>
                 <CardTitle>All Enrolled Students</CardTitle>
@@ -544,6 +729,36 @@ const TeacherDashboard = () => {
 
           {/* Data Entry Tab */}
           <TabsContent value="entry" className="space-y-6">
+            {/* CSV Import for Performance Data */}
+            <Card className="border-2 border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Bulk Import Performance Data via CSV
+                </CardTitle>
+                <CardDescription>
+                  Upload CSV file to import student performance data for multiple students at once
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CSVImport 
+                  type="performance"
+                  teacherId={currentTeacherId}
+                  teacherDepartment={userProfile?.department}
+                  onImportComplete={async () => {
+                    if (selectedSubject) {
+                      await loadStudentsBySubject(selectedSubject);
+                    }
+                    await loadData();
+                    toast({
+                      title: "Performance Data Imported",
+                      description: "Student performance data has been imported successfully. Risk assessments will be recalculated.",
+                    });
+                  }}
+                />
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Enter Student Performance Data (AI Prediction)</CardTitle>
@@ -835,10 +1050,15 @@ const TeacherDashboard = () => {
                       <Label htmlFor="student_department">Department</Label>
                       <Input 
                         id="student_department" 
-                        placeholder="Enter department (optional)" 
-                        value={studentForm.department}
+                        placeholder={userProfile?.department || "Enter department (optional)"} 
+                        value={studentForm.department || userProfile?.department || ""}
                         onChange={(e) => setStudentForm({ ...studentForm, department: e.target.value })}
                       />
+                      {userProfile?.department && (
+                        <p className="text-xs text-muted-foreground">
+                          Defaults to your department: {userProfile.department}
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -1025,6 +1245,18 @@ const TeacherDashboard = () => {
         )}
           </>
         )}
+
+        {/* Student Profile Modal */}
+        <StudentProfileModal
+          studentId={selectedStudentId}
+          open={!!selectedStudentId}
+          onOpenChange={(open) => {
+            if (!open) setSelectedStudentId(null);
+          }}
+          onUpdate={() => {
+            loadData();
+          }}
+        />
       </div>
     </div>
   );

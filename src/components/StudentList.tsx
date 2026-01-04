@@ -9,12 +9,13 @@ import type { Student } from "@/types/database";
 interface StudentListProps {
   students: Student[];
   isLoading?: boolean;
+  onStudentClick?: (studentId: string) => void;
 }
 
 type SortField = "name" | "erp_number" | "department" | "year" | "email";
 type SortDirection = "asc" | "desc";
 
-export const StudentList = ({ students, isLoading = false }: StudentListProps) => {
+export const StudentList = ({ students, isLoading = false, onStudentClick }: StudentListProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -223,7 +224,11 @@ export const StudentList = ({ students, isLoading = false }: StudentListProps) =
               </TableRow>
             ) : (
               filteredAndSortedStudents.map((student) => (
-                <TableRow key={student.id}>
+                <TableRow 
+                  key={student.id}
+                  className={onStudentClick ? "cursor-pointer hover:bg-accent" : ""}
+                  onClick={() => onStudentClick?.(student.id)}
+                >
                   <TableCell className="font-medium">{student.name}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{student.erp_number}</Badge>

@@ -102,3 +102,16 @@ export interface CounselingSession {
   updated_at: string;
 }
 
+export interface TimetableEntry {
+  id: string;
+  department: string;
+  day: string; // Monday, Tuesday, etc.
+  period: number; // 1, 2, 3, etc.
+  time_slot: string; // e.g., "09:00 - 10:00"
+  subject: string; // Subject name or "Break" or "Lab"
+  location?: string; // Optional location/room
+  teacher_id?: string; // Optional teacher reference
+  created_at: string;
+  updated_at: string;
+}
+

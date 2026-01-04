@@ -43,11 +43,24 @@ This guide will help you set up the Supabase backend database and configure the 
 ```env
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
+VITE_GEMINI_API_KEY=your-gemini-api-key-here
 ```
 
 Replace:
 - `your-project-id` with your actual Supabase project ID
 - `your-anon-key-here` with your actual anon key from Step 3
+- `your-gemini-api-key-here` with your Gemini API key (optional - see Step 4a)
+
+### Step 4a: Get Gemini API Key (Optional but Recommended)
+
+The system uses Google's Gemini AI to generate brief, personalized counseling suggestions. Without this key, the system will use rule-based suggestions as a fallback.
+
+1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey) or [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new API key for Gemini API
+3. Copy the API key
+4. Add it to your `.env` file as `VITE_GEMINI_API_KEY`
+
+**Note:** The Gemini API key is optional. If not provided, the system will automatically use rule-based suggestions instead.
 
 ## Step 5: Install Dependencies
 
