@@ -7,11 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserCog, Users, TrendingUp, AlertTriangle, LogOut, PieChart, UserPlus, BookOpen, FileText, Loader2, Calendar, Edit2, Save, X } from "lucide-react";
+import { UserCog, Users, TrendingUp, AlertTriangle, LogOut, PieChart, UserPlus, BookOpen, FileText, Loader2, Calendar, Edit2, Save, X, Clock, Trash2, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { teacherService, studentService, riskService, counselingService, authService, timetableService, hodService } from "@/lib/database";
-import type { TimetableEntry, HOD } from "@/types/database";
+import { teacherService, studentService, riskService, counselingService, authService, timetableService, hodService, eventService } from "@/lib/database";
+import type { TimetableEntry, HOD, Event } from "@/types/database";
 import { CSVImport } from "@/components/CSVImport";
 import { DatabaseDiagnostic } from "@/components/DatabaseDiagnostic";
 import { StudentList } from "@/components/StudentList";
@@ -41,6 +41,16 @@ const HODDashboard = () => {
   const [filteredStudentsByRisk, setFilteredStudentsByRisk] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
+  const [eventForm, setEventForm] = useState({
+    title: "",
+    description: "",
+    event_date: "",
+    event_type: "event" as "exam" | "assignment" | "event" | "holiday" | "seminar",
+    location: "",
+  });
 
   // Form state
   const [teacherForm, setTeacherForm] = useState({
@@ -92,12 +102,13 @@ const HODDashboard = () => {
       // Get department for filtering
       const department = profile?.department;
       
-      const [teachersData, studentsData, riskData, counselingData, timetableData] = await Promise.all([
+      const [teachersData, studentsData, riskData, counselingData, timetableData, eventsData] = await Promise.all([
         teacherService.getAll(department),
         studentService.getAll(department),
         riskService.getRiskSummary(department),
         counselingService.getAll(department),
         department ? timetableService.getByDepartment(department).catch(() => []) : Promise.resolve([]),
+        department ? eventService.getAll(department).catch(() => []) : Promise.resolve([]),
       ]);
 
       setTeachers(teachersData);
@@ -105,6 +116,7 @@ const HODDashboard = () => {
       setTotalStudents(studentsData.length);
       setRiskSummary(riskData);
       setTimetable(timetableData || []);
+      setEvents(eventsData || []);
       
       // Format counseling data
       const formattedCounseling = counselingData.map((c: any) => ({
@@ -397,6 +409,139 @@ const HODDashboard = () => {
     setFilteredStudentsByRisk([]);
   };
 
+  const handleAddEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userProfile?.department) {
+      toast({
+        title: "Error",
+        description: "Department not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await eventService.create({
+        department: userProfile.department,
+        title: eventForm.title.trim(),
+        description: eventForm.description.trim() || undefined,
+        event_date: new Date(eventForm.event_date).toISOString(),
+        event_type: eventForm.event_type,
+        location: eventForm.location.trim() || undefined,
+      });
+
+      toast({
+        title: "Event Added",
+        description: "Event has been added successfully",
+      });
+
+      setEventForm({
+        title: "",
+        description: "",
+        event_date: "",
+        event_type: "event",
+        location: "",
+      });
+      setIsAddingEvent(false);
+      await loadData();
+    } catch (error: any) {
+      toast({
+        title: "Error Adding Event",
+        description: error.message || "Failed to add event",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditEvent = (event: Event) => {
+    setEditingEvent(event);
+    setEventForm({
+      title: event.title,
+      description: event.description || "",
+      event_date: new Date(event.event_date).toISOString().slice(0, 16),
+      event_type: event.event_type,
+      location: event.location || "",
+    });
+    setIsAddingEvent(true);
+  };
+
+  const handleUpdateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEvent) return;
+
+    setIsSubmitting(true);
+    try {
+      await eventService.update(editingEvent.id, {
+        title: eventForm.title.trim(),
+        description: eventForm.description.trim() || undefined,
+        event_date: new Date(eventForm.event_date).toISOString(),
+        event_type: eventForm.event_type,
+        location: eventForm.location.trim() || undefined,
+      });
+
+      toast({
+        title: "Event Updated",
+        description: "Event has been updated successfully",
+      });
+
+      setEventForm({
+        title: "",
+        description: "",
+        event_date: "",
+        event_type: "event",
+        location: "",
+      });
+      setEditingEvent(null);
+      setIsAddingEvent(false);
+      await loadData();
+    } catch (error: any) {
+      toast({
+        title: "Error Updating Event",
+        description: error.message || "Failed to update event",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this event?")) return;
+
+    setIsSubmitting(true);
+    try {
+      await eventService.delete(id);
+      toast({
+        title: "Event Deleted",
+        description: "Event has been deleted successfully",
+      });
+      await loadData();
+    } catch (error: any) {
+      toast({
+        title: "Error Deleting Event",
+        description: error.message || "Failed to delete event",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const cancelEventEdit = () => {
+    setEventForm({
+      title: "",
+      description: "",
+      event_date: "",
+      event_type: "event",
+      location: "",
+    });
+    setEditingEvent(null);
+    setIsAddingEvent(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
       {/* Header */}
@@ -540,7 +685,7 @@ const HODDashboard = () => {
 
             {/* Main Content */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-8 max-w-7xl">
+            <TabsList className="grid w-full grid-cols-9 max-w-7xl">
               <TabsTrigger value="profile">
                 <Edit2 className="w-4 h-4 mr-2" />
                 Profile
@@ -556,6 +701,10 @@ const HODDashboard = () => {
               <TabsTrigger value="timetable">
                 <Calendar className="w-4 h-4 mr-2" />
                 Timetable
+              </TabsTrigger>
+              <TabsTrigger value="events">
+                <Clock className="w-4 h-4 mr-2" />
+                Events
               </TabsTrigger>
               <TabsTrigger value="counseling">
                 <TrendingUp className="w-4 h-4 mr-2" />
@@ -867,6 +1016,186 @@ const HODDashboard = () => {
                   }}
                   isSaving={isSavingTimetable}
                 />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Events Management Tab */}
+          <TabsContent value="events" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Department Events</CardTitle>
+                    <CardDescription>Manage upcoming events and important dates for {userProfile?.department || 'your department'}</CardDescription>
+                  </div>
+                  {!isAddingEvent && (
+                    <Button onClick={() => setIsAddingEvent(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Event
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isAddingEvent ? (
+                  <form onSubmit={editingEvent ? handleUpdateEvent : handleAddEvent} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="event-title">Event Title *</Label>
+                        <Input
+                          id="event-title"
+                          value={eventForm.title}
+                          onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                          placeholder="e.g., Mid-Semester Examinations"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="event-type">Event Type *</Label>
+                        <Select
+                          value={eventForm.event_type}
+                          onValueChange={(value: "exam" | "assignment" | "event" | "holiday" | "seminar") =>
+                            setEventForm({ ...eventForm, event_type: value })
+                          }
+                        >
+                          <SelectTrigger id="event-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="exam">Exam</SelectItem>
+                            <SelectItem value="assignment">Assignment</SelectItem>
+                            <SelectItem value="event">Event</SelectItem>
+                            <SelectItem value="holiday">Holiday</SelectItem>
+                            <SelectItem value="seminar">Seminar</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="event-date">Event Date & Time *</Label>
+                        <Input
+                          id="event-date"
+                          type="datetime-local"
+                          value={eventForm.event_date}
+                          onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="event-location">Location</Label>
+                        <Input
+                          id="event-location"
+                          value={eventForm.location}
+                          onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+                          placeholder="e.g., Main Campus, Auditorium"
+                        />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="event-description">Description</Label>
+                        <Input
+                          id="event-description"
+                          value={eventForm.description}
+                          onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                          placeholder="Event description or additional details"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            {editingEvent ? "Updating..." : "Adding..."}
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            {editingEvent ? "Update Event" : "Add Event"}
+                          </>
+                        )}
+                      </Button>
+                      <Button type="button" variant="outline" onClick={cancelEventEdit} disabled={isSubmitting}>
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="space-y-4">
+                    {events.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No events scheduled yet.</p>
+                        <p className="text-sm mt-2">Click "Add Event" to create your first event.</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Title</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Date & Time</TableHead>
+                              <TableHead>Location</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {events.map((event) => {
+                              const eventDate = new Date(event.event_date);
+                              const isPast = eventDate < new Date();
+                              return (
+                                <TableRow key={event.id} className={isPast ? "opacity-60" : ""}>
+                                  <TableCell className="font-medium">{event.title}</TableCell>
+                                  <TableCell>
+                                    <Badge variant={
+                                      event.event_type === 'exam' ? 'destructive' :
+                                      event.event_type === 'assignment' ? 'default' :
+                                      'secondary'
+                                    }>
+                                      {event.event_type}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {eventDate.toLocaleString('en-US', {
+                                      weekday: 'short',
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </TableCell>
+                                  <TableCell>{event.location || '-'}</TableCell>
+                                  <TableCell className="max-w-xs truncate">{event.description || '-'}</TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleEditEvent(event)}
+                                      >
+                                        <Edit2 className="w-4 h-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => handleDeleteEvent(event.id)}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

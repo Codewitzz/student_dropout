@@ -32,6 +32,7 @@ const TeacherDashboard = () => {
     lowRisk: 0,
     avgAttendance: 0,
   });
+  const [departmentRiskSummary, setDepartmentRiskSummary] = useState({ high: 0, medium: 0, low: 0 });
   const [selectedRiskFilter, setSelectedRiskFilter] = useState<'High' | 'Medium' | 'Low' | null>(null);
   const [filteredStudentsByRisk, setFilteredStudentsByRisk] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -41,6 +42,8 @@ const TeacherDashboard = () => {
   const [userProfile, setUserProfile] = useState<{ name?: string; department?: string } | null>(null);
   const [currentTeacherId, setCurrentTeacherId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("all-students");
+  const [fetchedStudentName, setFetchedStudentName] = useState<string>("");
+  const [isFetchingStudent, setIsFetchingStudent] = useState(false);
   
   // Student addition form state
   const [studentForm, setStudentForm] = useState({
@@ -99,6 +102,36 @@ const TeacherDashboard = () => {
     }
   }, [selectedSubject, userProfile?.department]);
 
+  // Auto-fetch student name when ERP number is entered
+  useEffect(() => {
+    const fetchStudentName = async () => {
+      if (entryForm.studentERP.trim().length >= 3) {
+        setIsFetchingStudent(true);
+        try {
+          const student = await studentService.getByERP(entryForm.studentERP.trim());
+          if (student) {
+            setFetchedStudentName(student.name);
+          } else {
+            setFetchedStudentName("");
+          }
+        } catch (error) {
+          setFetchedStudentName("");
+        } finally {
+          setIsFetchingStudent(false);
+        }
+      } else {
+        setFetchedStudentName("");
+      }
+    };
+
+    // Debounce the API call
+    const timeoutId = setTimeout(() => {
+      fetchStudentName();
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [entryForm.studentERP]);
+
   const loadData = async () => {
     try {
       setIsLoading(true);
@@ -135,6 +168,12 @@ const TeacherDashboard = () => {
       try {
         const allStudentsData = await studentService.getAll(department);
         setAllStudents(allStudentsData || []);
+        
+        // Load department-wide risk summary (like HOD dashboard)
+        if (department) {
+          const riskSummary = await riskService.getRiskSummary(department);
+          setDepartmentRiskSummary(riskSummary);
+        }
       } catch (studentError: any) {
         console.error('Error loading students:', studentError);
         setAllStudents([]);
@@ -280,7 +319,7 @@ const TeacherDashboard = () => {
           );
           toast({
             title: "Student Added with Login Account",
-            description: `Student added successfully! Login details - Email: ${studentForm.email.trim()}, Password: ${studentForm.password.trim()}. Student can login using ERP: ${studentForm.erp_number.trim()}`,
+            description: `Student added successfully! Login account created. Student can login using ERP: ${studentForm.erp_number.trim()} and the password you provided.`,
           });
         } catch (authError: any) {
           // Student created but auth failed
@@ -386,6 +425,7 @@ const TeacherDashboard = () => {
         teacherRemark: "",
         pastFailures: "",
       });
+      setFetchedStudentName("");
 
       // Reload data
       if (selectedSubject) {
@@ -500,7 +540,8 @@ const TeacherDashboard = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-foreground">{stats.totalStudents}</div>
+                  <div className="text-3xl font-bold text-foreground">{allStudents.length}</div>
+                  <p className="text-xs text-muted-foreground mt-1">In department</p>
                 </CardContent>
               </Card>
 
@@ -515,9 +556,9 @@ const TeacherDashboard = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-destructive">{stats.highRisk}</div>
+                  <div className="text-3xl font-bold text-destructive">{departmentRiskSummary.high}</div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {stats.totalStudents > 0 ? ((stats.highRisk / stats.totalStudents) * 100).toFixed(1) : 0}% of students
+                    {allStudents.length > 0 ? ((departmentRiskSummary.high / allStudents.length) * 100).toFixed(1) : 0}% of department
                   </p>
                   <p className="text-xs text-primary mt-2 font-medium">Click to view students</p>
                 </CardContent>
@@ -531,9 +572,9 @@ const TeacherDashboard = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Medium Risk</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-warning">{stats.mediumRisk}</div>
+                  <div className="text-3xl font-bold text-warning">{departmentRiskSummary.medium}</div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {stats.totalStudents > 0 ? ((stats.mediumRisk / stats.totalStudents) * 100).toFixed(1) : 0}% of students
+                    {allStudents.length > 0 ? ((departmentRiskSummary.medium / allStudents.length) * 100).toFixed(1) : 0}% of department
                   </p>
                   <p className="text-xs text-primary mt-2 font-medium">Click to view students</p>
                 </CardContent>
@@ -547,9 +588,9 @@ const TeacherDashboard = () => {
                   <CardTitle className="text-sm font-medium text-muted-foreground">Low Risk</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-success">{stats.lowRisk}</div>
+                  <div className="text-3xl font-bold text-success">{departmentRiskSummary.low}</div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {stats.totalStudents > 0 ? ((stats.lowRisk / stats.totalStudents) * 100).toFixed(1) : 0}% of students
+                    {allStudents.length > 0 ? ((departmentRiskSummary.low / allStudents.length) * 100).toFixed(1) : 0}% of department
                   </p>
                   <p className="text-xs text-primary mt-2 font-medium">Click to view students</p>
                 </CardContent>
@@ -657,7 +698,11 @@ const TeacherDashboard = () => {
                 <CardDescription>View and search all students in the department</CardDescription>
               </CardHeader>
               <CardContent>
-                <StudentList students={allStudents} isLoading={isLoading} />
+                <StudentList 
+                  students={allStudents} 
+                  isLoading={isLoading}
+                  onStudentClick={(studentId) => setSelectedStudentId(studentId)}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -793,6 +838,21 @@ const TeacherDashboard = () => {
                         onChange={(e) => setEntryForm({ ...entryForm, studentERP: e.target.value })}
                         required
                       />
+                      {isFetchingStudent && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Looking up student...
+                        </p>
+                      )}
+                      {!isFetchingStudent && fetchedStudentName && (
+                        <p className="text-sm text-primary font-medium flex items-center gap-1">
+                          <Users className="w-4 h-4" />
+                          Student: {fetchedStudentName}
+                        </p>
+                      )}
+                      {!isFetchingStudent && entryForm.studentERP.trim().length >= 3 && !fetchedStudentName && (
+                        <p className="text-xs text-destructive">Student not found with this ERP number</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">

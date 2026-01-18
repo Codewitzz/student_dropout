@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { Student, Teacher, HOD, StudentPerformance, RiskAssessment, CounselingSession, UserRole, AIRiskPrediction, TimetableEntry } from '@/types/database';
+import type { Student, Teacher, HOD, StudentPerformance, RiskAssessment, CounselingSession, UserRole, AIRiskPrediction, TimetableEntry, Event } from '@/types/database';
 import { handleDatabaseError, getErrorMessage } from './database-utils';
 import { generateCounselingSuggestions } from './gemini';
 
@@ -899,14 +899,36 @@ export const riskService = {
 
   async getAllRisks(department?: string) {
     try {
+      // First, get all students in the department if department filter is provided
+      let studentIds: string[] | undefined;
+      if (department) {
+        const { data: studentsData, error: studentsError } = await supabase
+          .from('students')
+          .select('id')
+          .eq('department', department);
+        
+        if (studentsError) {
+          console.error('Failed to fetch students for department filter:', studentsError);
+          return [];
+        }
+        
+        studentIds = studentsData?.map(s => s.id) || [];
+        
+        // If no students in department, return empty array
+        if (studentIds.length === 0) {
+          return [];
+        }
+      }
+      
+      // Build query for risk assessments
       let query = supabase
         .from('risk_assessments')
         .select('*, students(*)')
         .order('risk_score', { ascending: false });
       
-      // Filter by department if provided
-      if (department) {
-        query = query.eq('students.department', department);
+      // Filter by student IDs if department filter was applied
+      if (studentIds && studentIds.length > 0) {
+        query = query.in('student_id', studentIds);
       }
       
       const { data, error } = await query;
@@ -918,7 +940,7 @@ export const riskService = {
         return [];
       }
       
-      // If department filter was applied, filter results (since join filter might not work directly)
+      // Additional filter to ensure department match (safety check)
       if (department && data) {
         return data.filter((r: any) => r.students?.department === department);
       }
@@ -1127,6 +1149,128 @@ export const timetableService = {
       return (data || []) as TimetableEntry[];
     } catch (error: any) {
       console.error('Error in timetableService.bulkUpsert:', error);
+      throw error;
+    }
+  },
+};
+
+// ==================== Events ====================
+
+export const eventService = {
+  async getAll(department?: string) {
+    try {
+      let query = supabase
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: true });
+      
+      if (department) {
+        query = query.eq('department', department);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'getAll events');
+        throw new Error(errorInfo.message);
+      }
+      
+      return (data || []) as Event[];
+    } catch (error: any) {
+      console.error('Error in eventService.getAll:', error);
+      throw error;
+    }
+  },
+
+  async getUpcoming(department?: string, limit: number = 10) {
+    try {
+      const now = new Date().toISOString();
+      let query = supabase
+        .from('events')
+        .select('*')
+        .gte('event_date', now)
+        .order('event_date', { ascending: true })
+        .limit(limit);
+      
+      if (department) {
+        query = query.eq('department', department);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'getUpcoming events');
+        throw new Error(errorInfo.message);
+      }
+      
+      return (data || []) as Event[];
+    } catch (error: any) {
+      console.error('Error in eventService.getUpcoming:', error);
+      throw error;
+    }
+  },
+
+  async create(event: Omit<Event, 'id' | 'created_at' | 'updated_at'>) {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .insert({
+          ...event,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'create event');
+        throw new Error(errorInfo.message);
+      }
+      
+      return data as Event;
+    } catch (error: any) {
+      console.error('Error in eventService.create:', error);
+      throw error;
+    }
+  },
+
+  async update(id: string, updates: Partial<Omit<Event, 'id' | 'created_at' | 'updated_at'>>) {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'update event');
+        throw new Error(errorInfo.message);
+      }
+      
+      return data as Event;
+    } catch (error: any) {
+      console.error('Error in eventService.update:', error);
+      throw error;
+    }
+  },
+
+  async delete(id: string) {
+    try {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        const errorInfo = handleDatabaseError(error, 'delete event');
+        throw new Error(errorInfo.message);
+      }
+    } catch (error: any) {
+      console.error('Error in eventService.delete:', error);
       throw error;
     }
   },

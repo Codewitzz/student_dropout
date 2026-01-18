@@ -115,3 +115,15 @@ export interface TimetableEntry {
   updated_at: string;
 }
 
+export interface Event {
+  id: string;
+  department: string;
+  title: string;
+  description?: string;
+  event_date: string; // ISO timestamp
+  event_type: 'exam' | 'assignment' | 'event' | 'holiday' | 'seminar';
+  location?: string;
+  created_at: string;
+  updated_at: string;
+}
+

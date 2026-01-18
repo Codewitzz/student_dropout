@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { TrendingDown, AlertTriangle, BookOpen, Calendar, Target, Brain, LogOut, Loader2, Clock, MapPin, ChevronDown, ChevronUp, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { authService, studentService, performanceService, riskService, timetableService } from "@/lib/database";
-import type { TimetableEntry } from "@/types/database";
+import { authService, studentService, performanceService, riskService, timetableService, eventService } from "@/lib/database";
+import type { TimetableEntry, Event } from "@/types/database";
 import type { AIRiskPrediction } from "@/types/database";
 import type { Student } from "@/types/database";
 
@@ -20,6 +20,7 @@ const StudentDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+  const [events, setEvents] = useState<Event[]>([]);
 
   useEffect(() => {
     loadData();
@@ -68,6 +69,15 @@ const StudentDashboard = () => {
         } catch (error) {
           console.warn('Failed to load timetable:', error);
           // Continue without timetable if it fails
+        }
+
+        // Fetch upcoming events for student's department
+        try {
+          const eventsData = await eventService.getUpcoming(studentData.department, 10);
+          setEvents(eventsData || []);
+        } catch (error) {
+          console.warn('Failed to load events:', error);
+          // Continue without events if it fails
         }
       }
     } catch (error: any) {
@@ -302,7 +312,7 @@ const StudentDashboard = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <UpcomingEventsView />
+            <UpcomingEventsView events={events} />
           </CardContent>
         </Card>
 
@@ -878,42 +888,7 @@ const TimetableView = ({ student, timetable }: { student: Student | null; timeta
   );
 };
 
-const UpcomingEventsView = () => {
-  // Sample events - in production, fetch from database
-  const events = [
-    { 
-      id: 1, 
-      title: 'Mid-Semester Examinations', 
-      date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      type: 'exam',
-      location: 'Main Campus',
-      description: 'All subjects mid-semester exams'
-    },
-    { 
-      id: 2, 
-      title: 'Assignment Submission Deadline', 
-      date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-      type: 'assignment',
-      location: 'Online',
-      description: 'Submit all pending assignments'
-    },
-    { 
-      id: 3, 
-      title: 'Department Seminar', 
-      date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
-      type: 'event',
-      location: 'Auditorium',
-      description: 'Guest lecture on Industry Trends'
-    },
-    { 
-      id: 4, 
-      title: 'Final Examinations', 
-      date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days from now
-      type: 'exam',
-      location: 'Main Campus',
-      description: 'End semester final examinations'
-    },
-  ];
+const UpcomingEventsView = ({ events }: { events: Event[] }) => {
 
   const getEventIcon = (type: string) => {
     switch(type) {
@@ -937,7 +912,8 @@ const UpcomingEventsView = () => {
     }
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
       weekday: 'short', 
       month: 'short', 
@@ -946,9 +922,10 @@ const UpcomingEventsView = () => {
     });
   };
 
-  const getDaysUntil = (date: Date) => {
+  const getDaysUntil = (dateString: string) => {
     const today = new Date();
-    const diffTime = date.getTime() - today.getTime();
+    const eventDate = new Date(dateString);
+    const diffTime = eventDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
@@ -956,18 +933,18 @@ const UpcomingEventsView = () => {
   return (
     <div className="space-y-3">
       {events.map((event) => {
-        const daysUntil = getDaysUntil(event.date);
+        const daysUntil = getDaysUntil(event.event_date);
         const isUpcoming = daysUntil <= 7;
         
         return (
           <div 
             key={event.id} 
-            className={`p-4 rounded-lg border-2 ${getEventColor(event.type)} ${isUpcoming ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
+            className={`p-4 rounded-lg border-2 ${getEventColor(event.event_type)} ${isUpcoming ? 'ring-2 ring-offset-2 ring-primary' : ''}`}
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3 flex-1">
                 <div className="mt-0.5">
-                  {getEventIcon(event.type)}
+                  {getEventIcon(event.event_type)}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -978,16 +955,18 @@ const UpcomingEventsView = () => {
                       </Badge>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">{event.description}</p>
+                  <p className="text-sm text-muted-foreground mb-2">{event.description || 'No description'}</p>
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      <span>{formatDate(event.date)}</span>
+                      <span>{formatDate(event.event_date)}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      <span>{event.location}</span>
-                    </div>
+                    {event.location && (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        <span>{event.location}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       <span>{daysUntil > 0 ? `${daysUntil} days away` : daysUntil === 0 ? 'Today' : 'Past'}</span>

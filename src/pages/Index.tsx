@@ -1,12 +1,9 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, TrendingUp, Users, Brain, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { LearnMoreModal } from "@/components/LearnMoreModal";
 
 const Index = () => {
   const navigate = useNavigate();
-  const [isLearnMoreOpen, setIsLearnMoreOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
@@ -47,7 +44,7 @@ const Index = () => {
                 size="lg" 
                 variant="outline"
                 className="text-lg px-8 h-14 border-2 hover:bg-primary hover:text-primary-foreground transition-all duration-300 hover:scale-105 hover:shadow-lg"
-                onClick={() => setIsLearnMoreOpen(true)}
+                onClick={() => navigate('/learn-more')}
               >
                 Learn More
               </Button>
@@ -138,12 +135,9 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-12 border-t border-border bg-card/50">
         <div className="container mx-auto px-6 text-center text-muted-foreground">
-          <p>© 2025 Student Dropout Prevention System. Powered by AI.</p>
+          <p>© 2025 Student Dropout Prevention System. Powered by Codwitzz team.</p>
         </div>
       </footer>
-
-      {/* Learn More Modal */}
-      <LearnMoreModal open={isLearnMoreOpen} onOpenChange={setIsLearnMoreOpen} />
     </div>
   );
 };
