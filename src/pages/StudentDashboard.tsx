@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingDown, AlertTriangle, BookOpen, Calendar, Target, Brain, LogOut, Loader2, Clock, MapPin, ChevronDown, ChevronUp, TrendingUp } from "lucide-react";
+import { TrendingDown, AlertTriangle, BookOpen, Calendar, Target, Brain, LogOut, Loader2, Clock, MapPin, ChevronDown, ChevronUp, TrendingUp, GraduationCap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { authService, studentService, performanceService, riskService, timetableService, eventService } from "@/lib/database";
@@ -155,24 +155,29 @@ const StudentDashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">Student Dashboard</h1>
-              <p className="text-sm text-muted-foreground">
-                Welcome back, {student?.name || "Student"}
-              </p>
+      <header className="sticky top-0 z-10 border-b border-border/60 bg-card/80 backdrop-blur-xl shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20">
+                <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">Student Dashboard</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
+                  Welcome back, {student?.name || "Student"}
+                </p>
+              </div>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+            <Button variant="outline" size="sm" onClick={handleLogout} className="rounded-lg border-border/60 hover:bg-muted/50 transition-colors flex-shrink-0 px-3 sm:px-4">
+              <LogOut className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
+      <main className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {/* Risk Alert */}
         {riskLevel !== "Low" && (
           <Card className={`mb-8 border-2 border-${riskColor}/50 bg-gradient-to-r from-${riskColor}/10 to-${riskColor}/5`}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ const HODDashboard = () => {
   const [isSavingTimetable, setIsSavingTimetable] = useState(false);
   const [selectedRiskFilter, setSelectedRiskFilter] = useState<'High' | 'Medium' | 'Low' | null>(null);
   const [filteredStudentsByRisk, setFilteredStudentsByRisk] = useState<any[]>([]);
+  const filteredListRef = useRef<HTMLDivElement>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -378,8 +379,10 @@ const HODDashboard = () => {
       const department = userProfile?.department;
       const allRisks = await riskService.getAllRisks(department);
       
-      // Filter by risk level
-      const filtered = allRisks.filter((risk: any) => risk.risk_level === riskLevel);
+      // Filter by risk level and exclude risks with missing student data
+      const filtered = allRisks.filter((risk: any) => 
+        risk.risk_level === riskLevel && risk.students?.id
+      );
       
       // Format the data for display
       const formattedStudents = filtered.map((risk: any) => ({
@@ -408,6 +411,16 @@ const HODDashboard = () => {
     setSelectedRiskFilter(null);
     setFilteredStudentsByRisk([]);
   };
+
+  // Scroll to filtered list when risk filter is applied
+  useEffect(() => {
+    if (selectedRiskFilter && activeTab === "students") {
+      const timer = setTimeout(() => {
+        filteredListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedRiskFilter, activeTab, filteredStudentsByRisk]);
 
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -545,30 +558,30 @@ const HODDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-primary to-accent p-2 rounded-xl">
-                <UserCog className="w-6 h-6 text-white" />
+      <header className="sticky top-0 z-10 border-b border-border/60 bg-card/80 backdrop-blur-xl shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20">
+                <UserCog className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold">HOD Dashboard</h1>
-                <p className="text-sm text-muted-foreground">
-                  {userProfile?.name ? `${userProfile.name} - ` : ''}
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">HOD Dashboard</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
+                  {userProfile?.name ? `${userProfile.name} · ` : ''}
                   {userProfile?.department || 'Department'}
                 </p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+            <Button variant="outline" size="sm" onClick={handleLogout} className="rounded-lg border-border/60 hover:bg-muted/50 transition-colors flex-shrink-0 px-3 sm:px-4">
+              <LogOut className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -576,7 +589,7 @@ const HODDashboard = () => {
         ) : (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Total Students</CardTitle>
@@ -648,33 +661,33 @@ const HODDashboard = () => {
             <CardDescription>Overall risk assessment of all students</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center gap-8 py-8">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-8 py-6 sm:py-8">
               <div 
-                className="text-center cursor-pointer transition-all hover:scale-110"
+                className="text-center cursor-pointer transition-all hover:scale-105 sm:hover:scale-110"
                 onClick={() => handleRiskCardClick('High')}
               >
-                <div className={`w-32 h-32 rounded-full bg-destructive/20 flex items-center justify-center mb-2 transition-all ${selectedRiskFilter === 'High' ? 'ring-4 ring-destructive' : ''}`}>
-                  <span className="text-4xl font-bold text-destructive">{riskSummary.high}</span>
+                <div className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-destructive/20 flex items-center justify-center mb-2 transition-all ${selectedRiskFilter === 'High' ? 'ring-4 ring-destructive' : ''}`}>
+                  <span className="text-3xl sm:text-4xl font-bold text-destructive">{riskSummary.high}</span>
                 </div>
                 <p className="text-sm font-medium">High Risk</p>
                 <p className="text-xs text-primary mt-1">Click to view</p>
               </div>
               <div 
-                className="text-center cursor-pointer transition-all hover:scale-110"
+                className="text-center cursor-pointer transition-all hover:scale-105 sm:hover:scale-110"
                 onClick={() => handleRiskCardClick('Medium')}
               >
-                <div className={`w-32 h-32 rounded-full bg-warning/20 flex items-center justify-center mb-2 transition-all ${selectedRiskFilter === 'Medium' ? 'ring-4 ring-warning' : ''}`}>
-                  <span className="text-4xl font-bold text-warning">{riskSummary.medium}</span>
+                <div className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-warning/20 flex items-center justify-center mb-2 transition-all ${selectedRiskFilter === 'Medium' ? 'ring-4 ring-warning' : ''}`}>
+                  <span className="text-3xl sm:text-4xl font-bold text-warning">{riskSummary.medium}</span>
                 </div>
                 <p className="text-sm font-medium">Medium Risk</p>
                 <p className="text-xs text-primary mt-1">Click to view</p>
               </div>
               <div 
-                className="text-center cursor-pointer transition-all hover:scale-110"
+                className="text-center cursor-pointer transition-all hover:scale-105 sm:hover:scale-110"
                 onClick={() => handleRiskCardClick('Low')}
               >
-                <div className={`w-32 h-32 rounded-full bg-success/20 flex items-center justify-center mb-2 transition-all ${selectedRiskFilter === 'Low' ? 'ring-4 ring-success' : ''}`}>
-                  <span className="text-4xl font-bold text-success">{riskSummary.low}</span>
+                <div className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-success/20 flex items-center justify-center mb-2 transition-all ${selectedRiskFilter === 'Low' ? 'ring-4 ring-success' : ''}`}>
+                  <span className="text-3xl sm:text-4xl font-bold text-success">{riskSummary.low}</span>
                 </div>
                 <p className="text-sm font-medium">Low Risk</p>
                 <p className="text-xs text-primary mt-1">Click to view</p>
@@ -685,44 +698,46 @@ const HODDashboard = () => {
 
             {/* Main Content */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-9 max-w-7xl">
-              <TabsTrigger value="profile">
-                <Edit2 className="w-4 h-4 mr-2" />
-                Profile
-              </TabsTrigger>
-              <TabsTrigger value="students">
-                <BookOpen className="w-4 h-4 mr-2" />
-                Students
-              </TabsTrigger>
-              <TabsTrigger value="teachers">
-                <Users className="w-4 h-4 mr-2" />
-                Teachers
-              </TabsTrigger>
-              <TabsTrigger value="timetable">
-                <Calendar className="w-4 h-4 mr-2" />
-                Timetable
-              </TabsTrigger>
-              <TabsTrigger value="events">
-                <Clock className="w-4 h-4 mr-2" />
-                Events
-              </TabsTrigger>
-              <TabsTrigger value="counseling">
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Counseling Progress
-              </TabsTrigger>
-              <TabsTrigger value="add-teacher">
-                <UserPlus className="w-4 h-4 mr-2" />
-                Add Teacher
-              </TabsTrigger>
-              <TabsTrigger value="import">
-                <FileText className="w-4 h-4 mr-2" />
-                Import CSV
-              </TabsTrigger>
-              <TabsTrigger value="diagnostic">
-                <AlertTriangle className="w-4 h-4 mr-2" />
-                Diagnostic
-              </TabsTrigger>
-            </TabsList>
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <TabsList className="inline-flex w-max min-w-full sm:grid sm:grid-cols-9 sm:max-w-7xl bg-card/60 border-border/50 shadow-sm gap-1.5 p-1.5 flex-nowrap">
+                <TabsTrigger value="profile" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0">
+                  <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Profile
+                </TabsTrigger>
+                <TabsTrigger value="students" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0">
+                  <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Students
+                </TabsTrigger>
+                <TabsTrigger value="teachers" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0">
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Teachers
+                </TabsTrigger>
+                <TabsTrigger value="timetable" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0">
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Timetable
+                </TabsTrigger>
+                <TabsTrigger value="events" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Events
+                </TabsTrigger>
+                <TabsTrigger value="counseling" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0 whitespace-nowrap">
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Counseling
+                </TabsTrigger>
+                <TabsTrigger value="add-teacher" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0 whitespace-nowrap">
+                  <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Add Teacher
+                </TabsTrigger>
+                <TabsTrigger value="import" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0 whitespace-nowrap">
+                  <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Import
+                </TabsTrigger>
+                <TabsTrigger value="diagnostic" className="text-xs sm:text-sm px-2 sm:px-4 py-2 flex-shrink-0 whitespace-nowrap">
+                  <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                  Diagnostic
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-6">
@@ -842,11 +857,11 @@ const HODDashboard = () => {
            {/* Students List Tab */}
            <TabsContent value="students" className="space-y-6">
              {selectedRiskFilter && (
-               <Card className="border-2 border-primary/20">
-                 <CardHeader>
-                   <div className="flex items-center justify-between">
+               <Card ref={filteredListRef} className="border-2 border-primary/20">
+                 <CardHeader className="p-4 sm:p-6">
+                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                      <div>
-                       <CardTitle className="flex items-center gap-2">
+                       <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                          <AlertTriangle className={`w-5 h-5 ${
                            selectedRiskFilter === 'High' ? 'text-destructive' :
                            selectedRiskFilter === 'Medium' ? 'text-warning' : 'text-success'
@@ -857,16 +872,16 @@ const HODDashboard = () => {
                          Showing {filteredStudentsByRisk.length} student(s) with {selectedRiskFilter.toLowerCase()} risk level
                        </CardDescription>
                      </div>
-                     <Button variant="outline" onClick={clearRiskFilter} size="sm">
-                       <X className="w-4 h-4 mr-2" />
+                     <Button variant="outline" onClick={clearRiskFilter} size="sm" className="w-full sm:w-auto">
+                       <X className="w-4 h-4 sm:mr-2" />
                        Clear Filter
                      </Button>
                    </div>
                  </CardHeader>
                  <CardContent>
                    {filteredStudentsByRisk.length > 0 ? (
-                     <div className="overflow-x-auto">
-                       <Table>
+                     <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                       <Table className="min-w-[600px]">
                          <TableHeader>
                            <TableRow>
                              <TableHead>ERP Number</TableHead>
@@ -930,8 +945,8 @@ const HODDashboard = () => {
                 <CardDescription>Manage teachers and their subject assignments</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <Table>
+                <div className="rounded-md border overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <Table className="min-w-[550px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Teacher Name</TableHead>
@@ -1129,8 +1144,8 @@ const HODDashboard = () => {
                         <p className="text-sm mt-2">Click "Add Event" to create your first event.</p>
                       </div>
                     ) : (
-                      <div className="rounded-md border">
-                        <Table>
+                      <div className="rounded-md border overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                        <Table className="min-w-[600px]">
                           <TableHeader>
                             <TableRow>
                               <TableHead>Title</TableHead>
@@ -1208,8 +1223,8 @@ const HODDashboard = () => {
                 <CardDescription>Track student improvement after counseling sessions</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border">
-                  <Table>
+                <div className="rounded-md border overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <Table className="min-w-[400px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Student Name</TableHead>

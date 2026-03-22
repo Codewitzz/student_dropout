@@ -163,8 +163,8 @@ export const StudentList = ({ students, isLoading = false, onStudentClick }: Stu
       </div>
 
       {/* Student Table */}
-      <div className="border rounded-lg">
-        <Table>
+      <div className="border rounded-lg overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <Table className="min-w-[600px]">
           <TableHeader>
             <TableRow>
               <TableHead 

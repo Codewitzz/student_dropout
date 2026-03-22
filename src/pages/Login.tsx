@@ -207,7 +207,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5 flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-5xl">
         {/* Header */}
         <div className="text-center mb-8">
@@ -230,24 +230,24 @@ const Login = () => {
           </CardHeader>
           <CardContent>
             <Tabs value={activeRole} onValueChange={setActiveRole} className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-8 h-auto p-1">
+              <TabsList className="grid w-full grid-cols-3 mb-8 h-auto p-1.5 rounded-xl bg-muted/60 border border-border/50 shadow-sm">
                 <TabsTrigger 
                   value="student" 
-                  className="flex flex-col items-center gap-2 py-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  className="flex flex-col items-center gap-2 py-3 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-200"
                 >
                   <BookOpen className="w-5 h-5" />
                   <span className="text-sm font-medium">Student</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="teacher"
-                  className="flex flex-col items-center gap-2 py-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  className="flex flex-col items-center gap-2 py-3 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-200"
                 >
                   <Users className="w-5 h-5" />
                   <span className="text-sm font-medium">Teacher</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="hod"
-                  className="flex flex-col items-center gap-2 py-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                  className="flex flex-col items-center gap-2 py-3 rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all duration-200"
                 >
                   <UserCog className="w-5 h-5" />
                   <span className="text-sm font-medium">HOD</span>

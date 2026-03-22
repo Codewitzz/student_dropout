@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,7 @@ const TeacherDashboard = () => {
   const [userProfile, setUserProfile] = useState<{ name?: string; department?: string } | null>(null);
   const [currentTeacherId, setCurrentTeacherId] = useState<string | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("all-students");
+  const filteredListRef = useRef<HTMLDivElement>(null);
   const [fetchedStudentName, setFetchedStudentName] = useState<string>("");
   const [isFetchingStudent, setIsFetchingStudent] = useState(false);
   
@@ -451,8 +452,10 @@ const TeacherDashboard = () => {
       const department = userProfile?.department;
       const allRisks = await riskService.getAllRisks(department);
       
-      // Filter by risk level
-      const filtered = allRisks.filter((risk: any) => risk.risk_level === riskLevel);
+      // Filter by risk level and exclude risks with missing student data
+      const filtered = allRisks.filter((risk: any) => 
+        risk.risk_level === riskLevel && risk.students?.id
+      );
       
       // Format the data for display
       const formattedStudents = filtered.map((risk: any) => ({
@@ -482,6 +485,17 @@ const TeacherDashboard = () => {
     setFilteredStudentsByRisk([]);
   };
 
+  // Scroll to filtered list when risk filter is applied
+  useEffect(() => {
+    if (selectedRiskFilter && activeTab === "all-students") {
+      // Small delay to allow tab content to render
+      const timer = setTimeout(() => {
+        filteredListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedRiskFilter, activeTab, filteredStudentsByRisk]);
+
   const getRiskBadge = (risk: string) => {
     const colors = {
       High: "bg-destructive text-destructive-foreground",
@@ -494,30 +508,30 @@ const TeacherDashboard = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-primary to-accent p-2 rounded-xl">
-                <Users className="w-6 h-6 text-white" />
+      <header className="sticky top-0 z-10 border-b border-border/60 bg-card/80 backdrop-blur-xl shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-9 w-9 sm:h-11 sm:w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold">Teacher Dashboard</h1>
-                <p className="text-sm text-muted-foreground">
-                  {userProfile?.name ? `${userProfile.name} - ` : ''}
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">Teacher Dashboard</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
+                  {userProfile?.name ? `${userProfile.name} · ` : ''}
                   {userProfile?.department || 'Department'}
                 </p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
+            <Button variant="outline" size="sm" onClick={handleLogout} className="rounded-lg border-border/60 hover:bg-muted/50 transition-colors flex-shrink-0 px-3 sm:px-4">
+              <LogOut className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-8">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -525,7 +539,7 @@ const TeacherDashboard = () => {
         ) : (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium text-muted-foreground">Subjects Assigned</CardTitle>
@@ -605,34 +619,34 @@ const TeacherDashboard = () => {
             clearRiskFilter();
           }
         }} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-3xl">
-            <TabsTrigger value="all-students">
-              <Users className="w-4 h-4 mr-2" />
-              All Students
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 max-w-3xl bg-card/60 border-border/50 shadow-sm gap-1.5 p-1.5">
+            <TabsTrigger value="all-students" className="text-xs sm:text-sm px-2 sm:px-4 py-2">
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">All Students</span>
             </TabsTrigger>
-            <TabsTrigger value="students">
-              <BookOpen className="w-4 h-4 mr-2" />
-              My Students
+            <TabsTrigger value="students" className="text-xs sm:text-sm px-2 sm:px-4 py-2">
+              <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">My Students</span>
             </TabsTrigger>
-            <TabsTrigger value="entry">
-              <FileText className="w-4 h-4 mr-2" />
-              Data Entry
+            <TabsTrigger value="entry" className="text-xs sm:text-sm px-2 sm:px-4 py-2">
+              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">Data Entry</span>
             </TabsTrigger>
-            <TabsTrigger value="add-students">
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add Students
+            <TabsTrigger value="add-students" className="text-xs sm:text-sm px-2 sm:px-4 py-2">
+              <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">Add Students</span>
             </TabsTrigger>
           </TabsList>
 
           {/* All Students List Tab */}
           <TabsContent value="all-students" className="space-y-6">
             {selectedRiskFilter && (
-              <Card className="border-2 border-primary/20">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
+              <Card ref={filteredListRef} className="border-2 border-primary/20">
+                <CardHeader className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <AlertTriangle className={`w-5 h-5 ${
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <AlertTriangle className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${
                           selectedRiskFilter === 'High' ? 'text-destructive' :
                           selectedRiskFilter === 'Medium' ? 'text-warning' : 'text-success'
                         }`} />
@@ -642,16 +656,16 @@ const TeacherDashboard = () => {
                         Showing {filteredStudentsByRisk.length} student(s) with {selectedRiskFilter.toLowerCase()} risk level
                       </CardDescription>
                     </div>
-                    <Button variant="outline" onClick={clearRiskFilter} size="sm">
-                      <X className="w-4 h-4 mr-2" />
+                    <Button variant="outline" onClick={clearRiskFilter} size="sm" className="w-full sm:w-auto">
+                      <X className="w-4 h-4 sm:mr-2" />
                       Clear Filter
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {filteredStudentsByRisk.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <Table>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                      <Table className="min-w-[600px]">
                         <TableHeader>
                           <TableRow>
                             <TableHead>ERP Number</TableHead>
@@ -729,8 +743,8 @@ const TeacherDashboard = () => {
                   </Select>
                 </div>
 
-                <div className="rounded-md border">
-                  <Table>
+                <div className="rounded-md border overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <Table className="min-w-[600px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>ERP No.</TableHead>

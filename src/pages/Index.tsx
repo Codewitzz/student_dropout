@@ -7,18 +7,48 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
+      {/* Top Nav Bar */}
+      <nav className="sticky top-0 z-20 border-b border-border/60 bg-card/80 backdrop-blur-xl shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Brain className="w-6 h-6 sm:w-7 sm:h-7 text-primary flex-shrink-0" />
+              <span className="font-semibold text-base sm:text-lg tracking-tight truncate">Dropout Prevention</span>
+            </div>
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg px-2 sm:px-3 text-sm"
+                onClick={() => navigate('/learn-more')}
+              >
+                Learn More
+              </Button>
+              <Button
+                size="sm"
+                className="rounded-lg bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-md px-3 sm:px-4 text-sm"
+                onClick={() => navigate('/login')}
+              >
+                Get Started
+                <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 ml-1 sm:ml-2" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent" />
         
-        <div className="container mx-auto px-6 pt-20 pb-32 relative">
-          <div className="text-center max-w-4xl mx-auto space-y-8">
-            <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-6 py-2 shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 pt-12 sm:pt-20 pb-20 sm:pb-32 relative">
+          <div className="text-center max-w-4xl mx-auto space-y-6 sm:space-y-8">
+            <div className="inline-flex items-center gap-2 bg-card border border-border rounded-full px-4 sm:px-6 py-2 shadow-sm">
               <Brain className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">AI-Powered Student Analytics</span>
+              <span className="text-xs sm:text-sm font-medium">AI-Powered Student Analytics</span>
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold tracking-tight">
               <span className="bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
                 Predict & Prevent
               </span>
@@ -26,7 +56,7 @@ const Index = () => {
               Student Dropouts
             </h1>
             
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed px-1">
               Advanced AI-driven system that analyzes academic performance, attendance, and engagement 
               to identify at-risk students and provide personalized counseling recommendations.
             </p>
@@ -54,16 +84,16 @@ const Index = () => {
       </section>
 
       {/* Features Section */}
-      <section className="py-24 bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">Comprehensive Risk Management</h2>
+      <section className="py-12 sm:py-24 bg-card/50 backdrop-blur-sm">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="text-center mb-10 sm:mb-16">
+            <h2 className="text-2xl sm:text-4xl font-bold mb-4">Comprehensive Risk Management</h2>
             <p className="text-muted-foreground text-lg">
               Everything you need to support student success
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             <FeatureCard
               icon={<TrendingUp className="w-8 h-8" />}
               title="Risk Prediction"
@@ -92,10 +122,10 @@ const Index = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-24">
-        <div className="container mx-auto px-6">
-          <div className="bg-card rounded-3xl p-12 shadow-lg border border-border">
-            <div className="grid md:grid-cols-3 gap-12">
+      <section className="py-12 sm:py-24">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="bg-card rounded-2xl sm:rounded-3xl p-6 sm:p-12 shadow-lg border border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-12">
               <StatCard number="85%" label="Prediction Accuracy" />
               <StatCard number="3x" label="Faster Intervention" />
               <StatCard number="92%" label="Student Satisfaction" />
@@ -105,7 +135,7 @@ const Index = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-r from-primary via-accent to-primary relative overflow-hidden">
+      <section className="py-12 sm:py-24 bg-gradient-to-r from-primary via-accent to-primary relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{ 
             backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)',
@@ -113,12 +143,12 @@ const Index = () => {
           }} />
         </div>
         
-        <div className="container mx-auto px-6 text-center relative">
-          <GraduationCap className="w-16 h-16 mx-auto mb-6 text-white" />
-          <h2 className="text-4xl font-bold text-white mb-4">
+        <div className="container mx-auto px-4 sm:px-6 text-center relative">
+          <GraduationCap className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 text-white" />
+          <h2 className="text-2xl sm:text-4xl font-bold text-white mb-4">
             Ready to Transform Student Success?
           </h2>
-          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
+          <p className="text-base sm:text-xl text-white/90 mb-6 sm:mb-8 max-w-2xl mx-auto px-1">
             Join educational institutions using AI to identify and support at-risk students
           </p>
           <Button 
@@ -133,8 +163,8 @@ const Index = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-border bg-card/50">
-        <div className="container mx-auto px-6 text-center text-muted-foreground">
+      <footer className="py-8 sm:py-12 border-t border-border bg-card/50">
+        <div className="container mx-auto px-4 sm:px-6 text-center text-muted-foreground text-sm sm:text-base">
           <p>© 2025 Student Dropout Prevention System. Powered by Codwitzz team.</p>
         </div>
       </footer>

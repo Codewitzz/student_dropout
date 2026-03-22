@@ -30,7 +30,7 @@ const LearnMore = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/5">
       {/* Animated Header */}
-      <div className="relative p-8 bg-gradient-to-br from-primary via-accent to-primary text-white">
+      <div className="relative p-4 sm:p-8 bg-gradient-to-br from-primary via-accent to-primary text-white">
         <div className="absolute inset-0 opacity-20 overflow-hidden">
           <div 
             className="absolute inset-0" 
@@ -41,15 +41,15 @@ const LearnMore = () => {
             }} 
           />
         </div>
-        <div className="relative z-10 container mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl animate-pulse">
-                <Brain className="w-8 h-8" />
+        <div className="relative z-10 container mx-auto px-4 sm:px-6">
+          <div className="flex items-start sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div className="bg-white/20 backdrop-blur-sm p-2 sm:p-3 rounded-xl animate-pulse flex-shrink-0">
+                <Brain className="w-6 h-6 sm:w-8 sm:h-8" />
               </div>
-              <div>
-                <h1 className="text-3xl font-bold">Student Dropout Prevention System</h1>
-                <p className="text-white/90 mt-1">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-3xl font-bold leading-tight">Student Dropout Prevention System</h1>
+                <p className="text-white/90 mt-1 text-sm sm:text-base">
                   Complete Guide to Using the AI-Powered Analytics Platform
                 </p>
               </div>
@@ -57,7 +57,7 @@ const LearnMore = () => {
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:bg-white/20 rounded-full"
+              className="text-white hover:bg-white/20 rounded-full flex-shrink-0"
               onClick={() => navigate('/')}
             >
               <ArrowLeft className="w-5 h-5" />
@@ -67,49 +67,51 @@ const LearnMore = () => {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto">
+      <div className="sticky top-0 z-10 border-b border-border/60 bg-card/80 backdrop-blur-xl shadow-sm">
+        <div className="container mx-auto px-4 sm:px-6 overflow-hidden">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="w-full justify-start rounded-none border-0 bg-transparent h-auto p-4 gap-2">
+            <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <TabsList className="inline-flex w-max min-w-full sm:w-full sm:justify-start rounded-none border-0 bg-transparent h-auto p-3 gap-1.5 flex-nowrap">
               <TabsTrigger 
                 value="overview" 
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                className="rounded-lg px-4 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-primary/10 transition-all duration-200 flex-shrink-0 whitespace-nowrap"
               >
                 <Info className="w-4 h-4 mr-2" />
                 Overview
               </TabsTrigger>
               <TabsTrigger 
                 value="how-it-works"
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                className="rounded-lg px-4 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-primary/10 transition-all duration-200 flex-shrink-0 whitespace-nowrap"
               >
                 <PlayCircle className="w-4 h-4 mr-2" />
                 How It Works
               </TabsTrigger>
               <TabsTrigger 
                 value="hod-guide"
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                className="rounded-lg px-4 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-primary/10 transition-all duration-200 flex-shrink-0 whitespace-nowrap"
               >
                 <UserCog className="w-4 h-4 mr-2" />
                 HOD Guide
               </TabsTrigger>
               <TabsTrigger 
                 value="teacher-guide"
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                className="rounded-lg px-4 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-primary/10 transition-all duration-200 flex-shrink-0 whitespace-nowrap"
               >
                 <Users className="w-4 h-4 mr-2" />
                 Teacher Guide
               </TabsTrigger>
               <TabsTrigger 
                 value="student-guide"
-                className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+                className="rounded-lg px-4 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-primary/10 transition-all duration-200 flex-shrink-0 whitespace-nowrap"
               >
                 <GraduationCap className="w-4 h-4 mr-2" />
                 Student Guide
               </TabsTrigger>
             </TabsList>
+            </div>
 
             {/* Overview Tab */}
-            <TabsContent value="overview" className="container mx-auto p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+            <TabsContent value="overview" className="container mx-auto p-4 sm:p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
               <div className="grid md:grid-cols-2 gap-6">
                 <FeatureCard
                   icon={<Brain className="w-6 h-6" />}
@@ -175,7 +177,7 @@ const LearnMore = () => {
             </TabsContent>
 
             {/* How It Works Tab */}
-            <TabsContent value="how-it-works" className="container mx-auto p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+            <TabsContent value="how-it-works" className="container mx-auto p-4 sm:p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
               <div className="space-y-6">
                 <StepCard
                   number={1}
@@ -236,7 +238,7 @@ const LearnMore = () => {
             </TabsContent>
 
             {/* HOD Guide Tab */}
-            <TabsContent value="hod-guide" className="container mx-auto p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+            <TabsContent value="hod-guide" className="container mx-auto p-4 sm:p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
               <div className="space-y-4">
                 <GuideSection
                   title="Getting Started"
@@ -280,7 +282,7 @@ const LearnMore = () => {
             </TabsContent>
 
             {/* Teacher Guide Tab */}
-            <TabsContent value="teacher-guide" className="container mx-auto p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+            <TabsContent value="teacher-guide" className="container mx-auto p-4 sm:p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
               <div className="space-y-4">
                 <GuideSection
                   title="Login & Dashboard"
@@ -335,7 +337,7 @@ const LearnMore = () => {
             </TabsContent>
 
             {/* Student Guide Tab */}
-            <TabsContent value="student-guide" className="container mx-auto p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
+            <TabsContent value="student-guide" className="container mx-auto p-4 sm:p-8 space-y-6 animate-in fade-in-0 slide-in-from-right-4 duration-500">
               <div className="space-y-4">
                 <GuideSection
                   title="Login"

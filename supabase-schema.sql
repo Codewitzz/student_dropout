@@ -217,3 +217,44 @@ CREATE POLICY "Allow authenticated users to read users" ON users
 CREATE POLICY "Allow authenticated users to insert users" ON users
   FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
+-- Timetable Table
+CREATE TABLE IF NOT EXISTS timetable (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  department TEXT NOT NULL,
+  day TEXT NOT NULL,
+  period INTEGER NOT NULL,
+  time_slot TEXT,
+  subject TEXT NOT NULL,
+  location TEXT,
+  teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_timetable_department ON timetable(department);
+
+-- Events Table
+CREATE TABLE IF NOT EXISTS events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  department TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  event_date TIMESTAMPTZ NOT NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN ('exam', 'assignment', 'event', 'holiday', 'seminar')),
+  location TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_department ON events(department);
+CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
+
+ALTER TABLE timetable ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated users to manage timetable" ON timetable
+  FOR ALL USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow authenticated users to manage events" ON events
+  FOR ALL USING (auth.role() = 'authenticated');
+
